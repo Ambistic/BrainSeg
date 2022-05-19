@@ -1,6 +1,6 @@
 # BrainSeg
 
-Project of brain automatic segmentation using Deep Learning.
+Project of automatic brain segmentation using Deep Learning.
 
 ## Installation
 
