@@ -1,10 +1,13 @@
+import datetime
 import glob
-import numpy as np
 import shutil
 import os
 from pathlib import Path
-from PIL import Image
-import re
+
+from PIL.Image import Image
+from tqdm import tqdm
+
+from .utils import safe_move, parse_mask_val
 
 
 def init_curation_dataset(path):
@@ -12,11 +15,15 @@ def init_curation_dataset(path):
     path.mkdir(exist_ok=True, parents=True)
 
     (path / ".curation").touch()
+    (path / ".removed").mkdir(parents=True, exist_ok=True)
 
 
 def check_valid_path(path):
     assert (Path(path) / ".curation").exists(), \
         "You must first initialize a curation dataset !"
+
+    assert (Path(path) / ".removed").exists(), \
+        "Something went wrong, .removed folder is missing !"
 
 
 def add_element(path: Path, data_name=None, image=None, mask_name=None, mask=None):
@@ -50,19 +57,24 @@ def change_priority(path: Path, data_name, mask_name, priority: int):
     target = Path(source).parent / f"mask_{mask_name}_{str(priority).zfill(3)}.png"
 
     shutil.move(source, target)
+    return source, target
 
 
-def parse_mask_name(fn):
-    return re.findall(r"mask_([\w\d]+)_\d+.png", fn)[0]
+def reset(last_source, last_target):
+    shutil.move(last_target, last_source)
 
 
-def parse_mask_val(fn):
-    return int(re.findall(r"mask_[\w\d]+_(\d+).png", fn)[0])
+def is_empty(image: Image, background="white"):
+    reference = (0, 0) if background == "black" else (255, 255)
+    extrema = image.convert("L").getextrema()
+
+    return extrema == reference
 
 
-def fill_curation_dataset(path, data, name=None):
+def fill_curation_dataset(path, data, name=None, keep_empty_masks=False):
     """
 
+    :param keep_empty_masks:
     :param path: path of the curation dataset
     :param data: list of dict having data_name key at least
     Other possible keys are : image and mask
@@ -74,42 +86,16 @@ def fill_curation_dataset(path, data, name=None):
     # shall take the reference as argument then call the provider
     # or a 2/3-uple (name, image, mask) or (name, mask)
     # with an error if the image does not exist
-    for element in data:
+    for element in tqdm(data):
+        if not keep_empty_masks:
+            if is_empty(element["mask"]):
+                continue
         add_element(path, **element, mask_name=name)
 
 
 def get_list_mask(path, data_name):
     alls = glob.glob(str(Path(path) / data_name / "mask" / f"mask_*.png"))
     return [Path(x).name for x in alls]
-
-
-def load_mask(path, data_name, mask_name):
-    fp = Path(path) / data_name / "mask" / mask_name
-    image = Image.open(fp)
-    return image
-
-
-def load_image(path, data_name):
-    fp = Path(path) / data_name / "image.png"
-    image = Image.open(fp)
-    return image
-
-
-# noinspection PyTypeChecker
-def load_superpose_mask(path, data_name, mask_name):
-    mask = np.asarray(load_mask(path, data_name, mask_name))
-    image = np.asarray(load_image(path, data_name))
-
-    new_img = np.maximum(~mask.astype(bool), 0.5) * image
-    return new_img.astype(int).astype(np.uint8)
-
-
-# noinspection PyTypeChecker
-def load_multiply_mask(path, data_name, mask_name):
-    mask = np.asarray(load_mask(path, data_name, mask_name))
-    image = np.asarray(load_image(path, data_name))
-
-    return ~mask.astype(bool) * image
 
 
 def get_best_mask(path, sample):
@@ -128,7 +114,7 @@ def list_all(path, min_threshold):
     res = []
 
     for sample in os.listdir(path):
-        if not (path / sample).is_dir():
+        if not (path / sample).is_dir() or sample.startswith("."):
             continue
 
         mask_name, val = get_best_mask(path, sample)
@@ -140,3 +126,43 @@ def list_all(path, min_threshold):
             ))
 
     return [("image", x) for x in res]
+
+
+def has_zero(path, sample):
+    path = Path(path)
+    for mask_name in os.listdir(path / sample / "mask"):
+        val = parse_mask_val(mask_name)
+        if val == 0:
+            return True
+    return False
+
+
+def get_ones(path, sample):
+    path = Path(path)
+    ls = []
+    for mask_name in os.listdir(path / sample / "mask"):
+        val = parse_mask_val(mask_name)
+        if val == 1:
+            ls.append(mask_name)
+    return ls
+
+
+def flush_out(path):
+    path = Path(path)
+    check_valid_path(path)
+
+    # create the current remove directory
+    folder = path / ".removed" / datetime.datetime.now().isoformat().replace(":", "-")
+    folder.mkdir()
+
+    # loop over sample
+    for sample in os.listdir(path):
+        if not (path / sample).is_dir() or sample.startswith("."):
+            continue
+
+        ones = get_ones(path, sample)
+
+        # loop over content
+        for one in ones:
+            safe_move(path / sample / "mask" / one,
+                      folder / sample / "mask" / one)

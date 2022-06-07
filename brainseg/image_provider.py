@@ -1,4 +1,4 @@
-from .streamlit.manager import load_image, load_mask
+from .streamlit.load import load_mask, load_image
 
 from .provider import DataHandler, provider
 

@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "brainseg"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+svgutils = "^0.3.4"
+ipykernel = "^6.13.0"
+Pillow = "^9.1.0"
+numpy = "^1.22.3"
+tqdm = "^4.64.0"
+openslide-python = "^1.1.2"
+streamlit = "^1.9.0"
+matplotlib = "^3.5.2"
+czifile = "^2019.7.2"
+scikit-learn = "^1.0.2"
+scikit-image = "^0.19.2"
+aicspylibczi = "^3.0.5"
+tensorflow = "^2.8.0"
+segmentation-models = "^1.0.1"
+wxwidgets = "^1.0.5"
+pypotrace = "^0.3"
+imgaug = "^0.4.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -24,4 +24,5 @@ class Loader:
         return self.provider.image(self.data[item])
 
     def label(self, item):
-        return self.provider.mask(self.data[item])
+        x = self.provider.mask(self.data[item])
+        return x

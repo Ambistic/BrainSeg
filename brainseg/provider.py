@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+import brainseg.streamlit.load
+
 
 class DataHandler(ABC):
     name = None

@@ -1,3 +1,5 @@
+from math import ceil
+
 import numpy as np
 from pathlib import Path
 import aicspylibczi
@@ -15,7 +17,7 @@ def get_mask_from_slidepath(slidepath, masks_root, area="whitematter"):
     return None
 
 
-def open_image(slide, origine, downscale, size):
+def open_image_old(slide, origine, downscale, size):
     scale = 1 / downscale
     bbox = slide.get_mosaic_bounding_box()
     max_size_fit = bbox.w, bbox.h
@@ -30,6 +32,32 @@ def open_image(slide, origine, downscale, size):
                                size_fit[0], size_fit[1]), C=0, scale_factor=scale)
     image = image.reshape(image.shape[-3:])
     arr[:image.shape[0], :image.shape[1]] = image
+
+    return arr
+
+
+def open_image(slide, origine, downscale, size):
+    scale = 1 / downscale
+    bbox = slide.get_mosaic_bounding_box()
+    max_size_fit = bbox.w, bbox.h
+    size_down = int(size * downscale)
+    size_fit = (
+        max(min(max_size_fit[0], origine[0] + size_down) - origine[0], 0),
+        max(min(max_size_fit[1], origine[1] + size_down) - origine[1], 0),
+    )
+
+    delta_origine = max(0, -origine[0]), max(0, -origine[1])
+    delta_origine_down = ceil(delta_origine[0] / downscale), ceil(delta_origine[1] / downscale)
+
+    arr = np.zeros((size, size, 3))
+    image = slide.read_mosaic((origine[0] + bbox.x + delta_origine[0], origine[1] + bbox.y + delta_origine[1],
+                               size_fit[0] - delta_origine[0], size_fit[1] - delta_origine[1]),
+                              C=0, scale_factor=scale)
+    image = image.reshape(image.shape[-3:])
+
+    # here it's reversed
+    arr[delta_origine_down[1]:delta_origine_down[1] + image.shape[0],
+        delta_origine_down[0]:delta_origine_down[0] + image.shape[1]] = image
 
     return arr
 
@@ -71,9 +99,12 @@ def patch_from_mask(slide, mask, origine, downscale, size, background=255):
 
 
 class SlideHandler(DataHandler):
-    def __init__(self, slides_root, masks_root, area="whitematter"):
+    def __init__(self, slides_root, masks_root=None, area="whitematter"):
         self.slides_root = Path(slides_root)
-        self.masks_root = Path(masks_root)
+        if masks_root is None:
+            self.masks_root = None
+        else:
+            self.masks_root = Path(masks_root)
         self.name = area
         self.area = area
 
@@ -96,6 +127,8 @@ class SlideHandler(DataHandler):
         return open_image(slide, (element["ori_x"], element["ori_y"]), element["downscale"], element["size"])
 
     def load_mask(self, element):
+        if self.masks_root is None:
+            raise AttributeError("Your handler has not been initialized correctly, no mask available")
         assert isinstance(element, dict), "Element is not a dict !"
         assert all([k in element for k in ["slidepath", "downscale", "ori_x", "ori_y", "size"]])
 
@@ -103,7 +136,13 @@ class SlideHandler(DataHandler):
 
         maskpath = get_mask_from_slidepath(element["slidepath"], self.masks_root, area=self.area)
         mask = Image.open(maskpath)
-        mask = np.asarray(mask)[:, :, :3]
+
+        mask = np.asarray(mask)
+        if mask.ndim == 3:
+            mask = mask[:, :, :3]
+        else:
+            mask = mask.reshape(mask.shape + (1,))
+
 
         return patch_from_mask(slide, mask,
                                (element["ori_x"], element["ori_y"]),
