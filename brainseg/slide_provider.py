@@ -50,14 +50,18 @@ def open_image(slide, origine, downscale, size):
     delta_origine_down = ceil(delta_origine[0] / downscale), ceil(delta_origine[1] / downscale)
 
     arr = np.zeros((size, size, 3))
-    image = slide.read_mosaic((origine[0] + bbox.x + delta_origine[0], origine[1] + bbox.y + delta_origine[1],
-                               size_fit[0] - delta_origine[0], size_fit[1] - delta_origine[1]),
-                              C=0, scale_factor=scale)
+    try:
+        image = slide.read_mosaic((origine[0] + bbox.x + delta_origine[0], origine[1] + bbox.y + delta_origine[1],
+                                   size_fit[0] - delta_origine[0], size_fit[1] - delta_origine[1]),
+                                  C=0, scale_factor=scale)
+    except Exception:
+        print("failure for", slide, origine, downscale, size, max_size_fit)
+        raise
     image = image.reshape(image.shape[-3:])
 
     # here it's reversed
     arr[delta_origine_down[1]:delta_origine_down[1] + image.shape[0],
-        delta_origine_down[0]:delta_origine_down[0] + image.shape[1]] = image
+    delta_origine_down[0]:delta_origine_down[0] + image.shape[1]] = image
 
     return arr
 
@@ -86,7 +90,7 @@ def patch_from_mask(slide, mask, origine, downscale, size, background=255):
 
     # here it's reversed
     sub_mask = cut_mask[scaled_origine[1]:scaled_origine[1] + scaled_size,
-                        scaled_origine[0]:scaled_origine[0] + scaled_size]
+               scaled_origine[0]:scaled_origine[0] + scaled_size]
 
     complete_sub_mask = np.zeros((scaled_size, scaled_size, 3), dtype=np.uint8)
     complete_sub_mask.fill(background)
@@ -143,7 +147,29 @@ class SlideHandler(DataHandler):
         else:
             mask = mask.reshape(mask.shape + (1,))
 
-
         return patch_from_mask(slide, mask,
                                (element["ori_x"], element["ori_y"]),
                                element["downscale"], element["size"])
+
+
+class BiResSlideHandler(SlideHandler):
+    def __init__(self, slides_root, masks_root=None, area="whitematter"):
+        super().__init__(slides_root, masks_root, area)
+        self.name = "bires_" + area
+
+    def load_image(self, element):
+        assert isinstance(element, dict), "Element is not a dict !"
+        assert all([k in element for k in ["slidepath", "downscale", "ori_x", "ori_y", "size",
+                                           "downscale_lowres"]])
+
+        slide = self.get_slide(element["slidepath"])
+        lowres_ori = (
+             int(element["ori_x"] + (element["downscale"] - element["downscale_lowres"]) * element["size"] / 2),
+             int(element["ori_y"] + (element["downscale"] - element["downscale_lowres"]) * element["size"] / 2),
+        )
+
+        # handle size conflicts
+        highres = open_image(slide, (element["ori_x"], element["ori_y"]), element["downscale"], element["size"])
+        lowres = open_image(slide, lowres_ori, element["downscale_lowres"], element["size"])
+
+        return highres, lowres

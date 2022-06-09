@@ -5,6 +5,12 @@ from math import floor, ceil
 import numpy as np
 
 
+# name is not explicit for arrayisation
+def swapaxis(x):
+    # from list sample of list input to list input of list sample
+    return list(map(np.array, zip(*x)))
+
+
 class Generator(Sequence):
     def __init__(
             self,
@@ -40,7 +46,18 @@ class Generator(Sequence):
         # Generate data
         x, y = self.__data_generation(batch)
 
-        return np.array(x), np.array(y)
+        # handle if format is list
+        if isinstance(x[0], list):
+            x = swapaxis(x)
+        else:
+            x = np.array(x)
+
+        if isinstance(y[0], list):
+            y = swapaxis(y)
+        else:
+            y = np.array(y)
+
+        return x, y
 
 
 class TrainGenerator(Generator):

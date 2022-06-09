@@ -26,7 +26,7 @@ def check_valid_path(path):
         "Something went wrong, .removed folder is missing !"
 
 
-def add_element(path: Path, data_name=None, image=None, mask_name=None, mask=None):
+def add_element(path: Path, data_name=None, image=None, mask_name=None, mask=None, lowres_image=None):
     check_valid_path(path)
 
     if not (path / data_name).exists():
@@ -38,6 +38,11 @@ def add_element(path: Path, data_name=None, image=None, mask_name=None, mask=Non
         if (path / data_name / "image.png").exists():
             raise ValueError("An image already exist")
         image.save(str(path / data_name / "image.png"))
+
+    if lowres_image is not None:
+        if (path / data_name / "lowres.png").exists():
+            raise ValueError("A lowres image already exist")
+        lowres_image.save(str(path / data_name / "lowres.png"))
 
     if mask is not None:
         (path / data_name / "mask").mkdir(exist_ok=True)
@@ -109,7 +114,7 @@ def get_best_mask(path, sample):
     return best, best_val
 
 
-def list_all(path, min_threshold):
+def list_all(path, min_threshold, bires=False):
     path = Path(path)
     res = []
 
@@ -125,7 +130,8 @@ def list_all(path, min_threshold):
                 mask_name=mask_name,
             ))
 
-    return [("image", x) for x in res]
+    prefix = "bires_image" if bires else "image"
+    return [(prefix, x) for x in res]
 
 
 def has_zero(path, sample):

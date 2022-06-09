@@ -6,9 +6,22 @@ from PIL import Image
 from brainseg.streamlit.manager import check_valid_path
 
 
+def has_lowres(path, data_name):
+    check_valid_path(path)
+    fp = Path(path) / data_name / "lowres.png"
+    return fp.exists()
+
+
 def load_mask(path, data_name, mask_name):
     check_valid_path(path)
     fp = Path(path) / data_name / "mask" / mask_name
+    image = Image.open(fp)
+    return image
+
+
+def load_lowres(path, data_name):
+    check_valid_path(path)
+    fp = Path(path) / data_name / "lowres.png"
     image = Image.open(fp)
     return image
 

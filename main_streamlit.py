@@ -6,14 +6,15 @@ from pathlib import Path as P
 from tqdm import tqdm
 
 from brainseg.streamlit.manager import get_list_mask, change_priority, has_zero, reset, flush_out
-from brainseg.streamlit.load import load_mask, load_image, load_superpose_mask, load_multiply_mask
+from brainseg.streamlit.load import load_mask, load_image, load_superpose_mask, load_multiply_mask, has_lowres, \
+    load_lowres
 from brainseg.streamlit.utils import setup, set_value, parse_mask_name
 
 
 def initialization():
     # Initialization
     st.set_page_config(layout="wide")
-    setup('folder_path', "/media/nathan/LaCie/Data/wm_curated_x8_576")
+    setup('folder_path', "/media/nathan/LaCie/Data/wm_x8_224_lowres")
     setup('current', None)
     setup('current_mask', None)
     setup('filelist', None)
@@ -124,7 +125,12 @@ def draw_mask(path, name, mask_name, c1, c2):
 
     with c2:
         st.image(load_mask(path, name, mask_name), width=448)
-        st.image(load_multiply_mask(path, name, mask_name), width=448)
+        # here if lowres then show otherwise multiply
+        if has_lowres(path, name):
+            img = load_lowres(path, name)
+        else:
+            img = load_multiply_mask(path, name, mask_name)
+        st.image(img, width=448)
 
 
 def change_mask_priority(priority):
