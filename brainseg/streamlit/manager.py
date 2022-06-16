@@ -153,7 +153,7 @@ def get_ones(path, sample):
     return ls
 
 
-def flush_out(path):
+def flush_out(path, hard=False):
     path = Path(path)
     check_valid_path(path)
 
@@ -168,7 +168,12 @@ def flush_out(path):
 
         ones = get_ones(path, sample)
 
-        # loop over content
-        for one in ones:
-            safe_move(path / sample / "mask" / one,
-                      folder / sample / "mask" / one)
+        if hard and len(ones) > 0:
+            safe_move(path / sample,
+                      folder / sample)
+
+        else:
+            # loop over content
+            for one in ones:
+                safe_move(path / sample / "mask" / one,
+                          folder / sample / "mask" / one)

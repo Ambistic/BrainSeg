@@ -62,7 +62,7 @@ def save_svg(args, contours):
     for contour in contours:
         poly = ET.Element("polyline", dict(
             points=numpy_to_points(contour),
-            style="stroke:rgb(0,248,255); fill:none; stroke-width:1"
+            style="stroke:rgb(0,248,255); fill:none; stroke-width:100"
         ))
         root.append(poly)
     save_element(root, str(args.file.parent / args.file.stem) + ".svg")

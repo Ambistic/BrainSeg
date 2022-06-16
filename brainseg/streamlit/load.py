@@ -41,6 +41,16 @@ def load_superpose_mask(path, data_name, mask_name):
     return new_img.astype(int).astype(np.uint8)
 
 
+def load_superpose_mask_3(path, data_name, mask_name):
+    mask = np.asarray(load_mask(path, data_name, mask_name))
+    image = np.asarray(load_image(path, data_name))
+
+    mask = mask.sum(axis=2).astype(bool)
+    mask = mask[..., np.newaxis]
+    new_img = np.maximum(mask, 0.5) * image
+    return new_img.astype(int).astype(np.uint8)
+
+
 def load_multiply_mask(path, data_name, mask_name):
     mask = np.asarray(load_mask(path, data_name, mask_name))
     image = np.asarray(load_image(path, data_name))

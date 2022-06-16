@@ -41,7 +41,7 @@ def increase_line_width(svg):
         x.attrib["style"] = css
 
 
-def build_export_with_cond(svg, export_path, keep_lines, mandatory=False):
+def build_export_with_cond(svg, export_path, keep_lines, mandatory=False, new_color=None):
     svg = copy_element(svg)
     keep = False
     for x in svg.iterchildren():
@@ -56,6 +56,10 @@ def build_export_with_cond(svg, export_path, keep_lines, mandatory=False):
             # print("Removing a too small polygon")
             svg.remove(x)
         else:
+            if new_color is not None:
+                d["stroke"] = new_color
+                x.attrib["style"] = dict_to_css(d)
+
             keep = True
 
     if not (mandatory or keep):
@@ -114,16 +118,16 @@ def run_extract_points(args, svg, export_path, id_slice):
 
 
 def run_extract_lines(args, svg, export_path):
-    build_export_with_cond(svg, export_path + "_pial.svg", ["outline"], mandatory=True)
-    build_export_with_cond(svg, export_path + "_white.svg", ["white_matter"], mandatory=True)
+    build_export_with_cond(svg, export_path + "_pial.svg", ["outline"], mandatory=True, new_color="rgb(255,0,0)")
+    build_export_with_cond(svg, export_path + "_white.svg", ["white_matter"], mandatory=True, new_color="rgb(0,0,255)")
 
-    build_export_with_cond(svg, export_path + "_cla.svg", ["claustrum"])
-    build_export_with_cond(svg, export_path + "_cla_ven.svg", ["claustrum_ventral"])
-    build_export_with_cond(svg, export_path + "_cla_AchE.svg", ["claustrum_ache"])
-    build_export_with_cond(svg, export_path + "_cla_li.svg", ["claustrum_limen_insula"])
-    build_export_with_cond(svg, export_path + "_pu.svg", ["putamen"])
-    build_export_with_cond(svg, export_path + "_amy.svg", ["amygdala"])
-    build_export_with_cond(svg, export_path + "_Layer4.svg", ["layer_4"])
+    build_export_with_cond(svg, export_path + "_cla.svg", ["claustrum"], new_color="rgb(255,0,255)")
+    build_export_with_cond(svg, export_path + "_cla_ven.svg", ["claustrum_ventral"], new_color="rgb(200,0,200)")
+    build_export_with_cond(svg, export_path + "_cla_AchE.svg", ["claustrum_ache"], new_color="rgb(255,0,150)")
+    build_export_with_cond(svg, export_path + "_cla_li.svg", ["claustrum_limen_insula"], new_color="rgb(150,0,255)")
+    build_export_with_cond(svg, export_path + "_pu.svg", ["putamen"], new_color="rgb(0,255,0)")
+    build_export_with_cond(svg, export_path + "_amy.svg", ["amygdala"], new_color="rgb(255,255,0)")
+    build_export_with_cond(svg, export_path + "_Layer4.svg", ["layer_4"], new_color="rgb(0,255,255)")
 
 
 def export_vizualize_svg(args, svg, name):
@@ -157,7 +161,7 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--root", type=Path)
     parser.add_argument("-o", "--output", type=Path)
 
-    parser.add_argument("-n", "--name", help="Name of the monkey")
+    parser.add_argument("-n", "--name", help="Name of the monkey, e.g. M148_RH")
     parser.add_argument("-e", "--error", action="store_true")
     parser.add_argument("-m", "--min-polygon-size", type=int, default=10)
     parser.add_argument("--dyes", help="Name of the dyes", nargs="+")

@@ -52,3 +52,10 @@ mask quality
 a png file
 9) Use `convert_png_svg.py` to convert png back to svg. You can also use
 another svg as template, predictions will be added to it (in a new file).
+
+
+# Updates
+
+A v2 version of most of the files contains a version handling
+bi-resolution segmentation. This is because single resolution segmentation
+appeared to be less efficient.

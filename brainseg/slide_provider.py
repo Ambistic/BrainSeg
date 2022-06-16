@@ -173,3 +173,55 @@ class BiResSlideHandler(SlideHandler):
         lowres = open_image(slide, lowres_ori, element["downscale_lowres"], element["size"])
 
         return highres, lowres
+
+
+class MultiMaskSlideHandler(SlideHandler):
+    def __init__(self, slides_root, masks_root=None, areas=None, name="default"):
+        super().__init__(slides_root, masks_root, "")
+        self.name = "multimask_" + name
+        self.areas = areas
+
+    def open_mask(self, slidepath, area):
+        maskpath = get_mask_from_slidepath(slidepath, self.masks_root, area=area)
+        mask = Image.open(maskpath)
+
+        mask = np.asarray(mask)
+        if mask.ndim == 3:
+            mask = mask[:, :, 0:1]
+        else:
+            mask = mask.reshape(mask.shape + (1,))
+
+        return ~ mask.astype(bool)
+
+    def load_mask(self, element):
+        if self.masks_root is None:
+            raise AttributeError("Your handler has not been initialized correctly, no mask available")
+        assert isinstance(element, dict), "Element is not a dict !"
+        assert all([k in element for k in ["slidepath", "downscale", "ori_x", "ori_y", "size"]])
+
+        slide = self.get_slide(element["slidepath"])
+
+        full_mask = np.zeros((element["size"], element["size"], len(self.areas)), dtype=bool)
+
+        for i, area in enumerate(self.areas):
+            mask = self.open_mask(element["slidepath"], area) * 255
+            c_mask = patch_from_mask(slide, mask,
+                                     (element["ori_x"], element["ori_y"]),
+                                     element["downscale"], element["size"],
+                                     background=0)
+            full_mask[:, :, i] = c_mask[:, :, 0]
+
+        return full_mask
+
+
+class BiResMultiMaskSlideHandler(BiResSlideHandler, MultiMaskSlideHandler):
+    def __init__(self, slides_root, masks_root=None, areas=None, name="default"):
+        BiResSlideHandler.__init__(self, slides_root, masks_root, "")
+        self.name = "bires_multimask_" + name
+        self.areas = areas
+
+    def load_mask(self, element):
+        return MultiMaskSlideHandler.load_mask(self, element)
+
+    def load_image(self, element):
+        return BiResSlideHandler.load_image(self, element)

@@ -1,5 +1,6 @@
 import pickle
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def save_data(data, fn):
@@ -32,3 +33,33 @@ def show_batch_bires(batch):
         plt.subplot(3, len(batch[0]), 1 + i + len(batch[0]) * 2)
         plt.imshow(c, vmin=0, vmax=1)
     plt.colorbar()
+
+
+def rgb_to_multi(arr, table):
+    multi_arr = np.zeros(arr.shape[:2] + (len(table),), dtype=bool)
+    for i, vec in enumerate(table):
+        vec = np.array(vec)
+        multi_arr[:, :, i] = (arr == vec).all(axis=2)
+    return multi_arr
+
+
+def multi_to_rgb(arr, table):
+    rgb_arr = np.zeros(arr.shape[:2] + (3,), dtype=np.uint8)
+    for i, vec in enumerate(table):
+        vec = np.array(vec)
+        rgb_arr[arr[:, :, i]] = vec
+    return rgb_arr
+
+
+DICT_AREA_COLOR = dict(
+    putamen=[20, 200, 100],
+    whitematter=[200, 200, 200],
+    claustrum=[255, 150, 150],
+)
+
+
+def to_color(areas):
+    if isinstance(areas, str):
+        areas = [areas]
+
+    return [DICT_AREA_COLOR[area] for area in areas]
