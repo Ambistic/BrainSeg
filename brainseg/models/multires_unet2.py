@@ -82,7 +82,7 @@ def multires_unet(n_res=2, n_classes=1, im_sz=224, n_channels=3, n_filters_start
     n_filters = n_filters_start
     lowres_encoders = [get_lowres_encoder(
         im_sz=im_sz, n_channels=n_channels, n_filters_start=n_filters_start,
-        growth_factor=growth_factor, power_downscale=i + 1
+        growth_factor=growth_factor, power_downscale=(i + 1) * 2
     ) for i in range(n_res - 1)]
 
     inputs = Input((im_sz, im_sz, n_channels))
