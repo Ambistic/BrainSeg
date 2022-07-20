@@ -114,7 +114,7 @@ def get_best_mask(path, sample):
     return best, best_val
 
 
-def list_all(path, min_threshold, bires=False):
+def list_all(path, min_threshold, prefix="image"):
     path = Path(path)
     res = []
 
@@ -130,7 +130,6 @@ def list_all(path, min_threshold, bires=False):
                 mask_name=mask_name,
             ))
 
-    prefix = "bires_image" if bires else "image"
     return [(prefix, x) for x in res]
 
 
@@ -143,14 +142,18 @@ def has_zero(path, sample):
     return False
 
 
-def get_ones(path, sample):
+def get_values(path, sample, value):
     path = Path(path)
     ls = []
     for mask_name in os.listdir(path / sample / "mask"):
         val = parse_mask_val(mask_name)
-        if val == 1:
+        if val == value:
             ls.append(mask_name)
     return ls
+
+
+def get_ones(path, sample):
+    return get_values(path, sample, 1)
 
 
 def flush_out(path, hard=False):
@@ -168,12 +171,27 @@ def flush_out(path, hard=False):
 
         ones = get_ones(path, sample)
 
-        if hard and len(ones) > 0:
+        if len(ones) > 0:
             safe_move(path / sample,
                       folder / sample)
+            continue
 
-        else:
-            # loop over content
-            for one in ones:
-                safe_move(path / sample / "mask" / one,
-                          folder / sample / "mask" / one)
+        twos = get_values(path, sample, 2)
+        # loop over content
+        for two in twos:
+            safe_move(path / sample / "mask" / two,
+                      folder / sample / "mask" / two)
+
+
+def list_all_values(path):
+    path = Path(path)
+    all_values = []
+    for sample in os.listdir(path):
+        if not (path / sample).is_dir() or sample.startswith("."):
+            continue
+
+        for mask_name in os.listdir(path / sample / "mask"):
+            val = parse_mask_val(mask_name)
+            all_values.append(val)
+
+    return all_values

@@ -33,6 +33,13 @@ def load_image(path, data_name):
     return image
 
 
+def load_custom_image(path, data_name, name):
+    check_valid_path(path)
+    fp = Path(path) / data_name / name
+    image = Image.open(fp)
+    return image
+
+
 def load_superpose_mask(path, data_name, mask_name):
     mask = np.asarray(load_mask(path, data_name, mask_name))
     image = np.asarray(load_image(path, data_name))

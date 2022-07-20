@@ -110,12 +110,17 @@ def sidebar():
         st.markdown("""<hr style="height:10px;border:none;color:#333;background-color:#333;" /> """,
                     unsafe_allow_html=True)
 
+        list_ids = ["none", "bad image", "bad mask", "good mask", "very mask"]
+        show_id = st.selectbox("Select an id", list_ids, index=0)
+
         st.header("Current folder", st.session_state.folder_path)
         if st.session_state.folder_path is not None:
             st.write(st.session_state.folder_path)
             filelist = st.session_state.filelist if not ch else None
             list_files(st.session_state.folder_path,
                        filelist=filelist)
+
+        return show_id
 
 
 def draw_mask(path, name, mask_name, c1, c2):
@@ -140,7 +145,8 @@ def change_mask_priority(priority):
     st.session_state.history.append((source, target))
 
 
-def build_main():
+def build_main(ids):
+    print(ids)
     # Main
     if st.session_state.current is not None:
         list_mask = get_list_mask(st.session_state.folder_path, st.session_state.current)
@@ -156,14 +162,15 @@ def build_main():
         with col_button:
             for i in range(20):
                 st.write("")
-            vals = ["000", "001", "010", "020", "100"]
+            vals = ["000", "001", "002", "010", "020"]
+            names = ["none", "bad image", "bad mask", "good mask", "very mask"]
             for i in range(len(vals)):
-                b = st.button(vals[i], on_click=change_mask_priority, args=(vals[i],))
+                b = st.button(names[i], on_click=change_mask_priority, args=(vals[i],))
                 if b:
                     pass
 
 
 app = wx.App()
 initialization()
-sidebar()
-build_main()
+x = sidebar()
+build_main(x)

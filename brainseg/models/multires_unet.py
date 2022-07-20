@@ -23,7 +23,7 @@ def residual_block(blockInput, num_filters=16):
     return x
 
 
-def get_lowres_encoder(im_sz=224, n_channels=3, n_filters_start=32, growth_factor=2):
+def get_lowres_encoder(im_sz=224, n_channels=3, n_filters_start=32, growth_factor=1.2):
     droprate=0.1
     n_filters = n_filters_start
     inputs = Input((im_sz, im_sz, n_channels))
@@ -76,13 +76,14 @@ def get_lowres_encoder(im_sz=224, n_channels=3, n_filters_start=32, growth_facto
     return model
 
 
-def bi_res_unet(n_classes=1, im_sz=224, n_channels=3, n_filters_start=32, growth_factor=2, upconv=True):
+def multires_unet(n_res=2, n_classes=1, im_sz=224, n_channels=3, n_filters_start=32, growth_factor=1.2, upconv=True):
     droprate = 0.1
     n_filters = n_filters_start
-    lowres_encoder = get_lowres_encoder(
+    lowres_encoders = [get_lowres_encoder(
         im_sz=im_sz, n_channels=n_channels, n_filters_start=n_filters_start,
         growth_factor=growth_factor
-    )
+    ) for _ in range(n_res - 1)]
+
     inputs = Input((im_sz, im_sz, n_channels))
 
     conv1 = convolution_block(inputs, n_filters, (3, 3))
@@ -129,7 +130,7 @@ def bi_res_unet(n_classes=1, im_sz=224, n_channels=3, n_filters_start=32, growth
     conv5 = residual_block(conv5, n_filters)
     conv5 = Dropout(droprate)(conv5)
 
-    conv5 = concatenate([conv5, lowres_encoder.output])
+    conv5 = concatenate([conv5] + [lowres_encoder.output for lowres_encoder in lowres_encoders])
 
     n_filters //= growth_factor
     if upconv:
@@ -187,6 +188,7 @@ def bi_res_unet(n_classes=1, im_sz=224, n_channels=3, n_filters_start=32, growth
 
     conv10 = Conv2D(n_classes, (1, 1), activation='sigmoid')(conv9)
 
-    model = Model(inputs=[inputs, lowres_encoder.inputs], outputs=conv10)
+    model = Model(inputs=[inputs] + [lowres_encoder.inputs for lowres_encoder in lowres_encoders],
+                  outputs=conv10)
 
     return model

@@ -92,13 +92,13 @@ def center_viewbox(svg):
     svg.attrib["height"] = "1000"
 
 
-def increase_width(svg):
+def increase_width(svg, width=100):
     for x in svg.iterchildren():
         if not is_line(x):
             if is_point(x):
-                x.attrib["stroke-width"] = "100"
+                x.attrib["stroke-width"] = str(width)
             continue
 
         style = css_to_dict(x.attrib["style"])
-        style["stroke-width"] = "100"
+        style["stroke-width"] = str(width)
         x.attrib["style"] = dict_to_css(style)

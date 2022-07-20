@@ -35,6 +35,20 @@ def show_batch_bires(batch):
     plt.colorbar()
 
 
+def show_batch_multires(batch):
+    # flatten batch
+    batch = (*batch[0], batch[1])
+    for i, imgs in enumerate(zip(*batch)):
+        nb = len(imgs)
+        for j in range(nb - 1):
+            plt.subplot(nb, len(batch[0]), 1 + i + len(batch[0]) * j)
+            plt.imshow(imgs[j])
+
+        plt.subplot(nb, len(batch[0]), 1 + i + len(batch[0]) * (nb - 1))
+        plt.imshow(imgs[-1], vmin=0, vmax=1)
+    plt.colorbar()
+
+
 def rgb_to_multi(arr, table):
     multi_arr = np.zeros(arr.shape[:2] + (len(table),), dtype=bool)
     for i, vec in enumerate(table):

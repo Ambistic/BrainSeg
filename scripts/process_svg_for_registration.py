@@ -11,6 +11,8 @@ from brainseg.svg.utils import css_to_dict, dict_to_css, copy_element, save_elem
     is_point, is_line, increase_width, points_to_numpy, is_polygon
 
 SUFFIX_CELL_FILE = "DY-FB.csv.contour_cells"
+DYE_DICT = dict()
+args = None
 
 DICT_COLOR_TO_AREA = {
     "rgb(255,0,0)": "outline",
@@ -22,23 +24,13 @@ DICT_COLOR_TO_AREA = {
     "rgb(242,0,0)": "claustrum_ventral",
     "rgb(241,0,0)": "claustrum_ache",
     "rgb(227,0,0)": "amygdala",
-    "rgb(150,0,255)": "claustrum_limen_insula"
+    "rgb(240,0,0)": "claustrum_limen_insula"
 }
 
 
 @lru_cache
 def warn_neuron_cat(cat):
     warnings.warn(f"Category {cat} found but no dye associated !")
-
-
-def increase_line_width(svg):
-    for x in svg.iterchildren():
-        css = x.attrib["style"]
-        d = css_to_dict(css)
-        if 'stroke-width' in d:
-            d["stroke-width"] = "100"
-        css = dict_to_css(d)
-        x.attrib["style"] = css
 
 
 def build_export_with_cond(svg, export_path, keep_lines, mandatory=False, new_color=None):
@@ -140,7 +132,7 @@ def export_vizualize_svg(args, svg, name):
                            ["outline", "white_matter"])
 
 
-def main(args, f):
+def run(args, f):
     xml = ET.parse(f)
     svg = xml.getroot()
     id_slice = get_slice_number(Path(f).name)
@@ -153,10 +145,13 @@ def main(args, f):
     run_extract_lines(args, svg, full_name_data)
 
     name = args.name + str(id_slice)
+    increase_width(svg, 500)
     export_vizualize_svg(args, svg, name)
 
 
-if __name__ == "__main__":
+def main():
+    global DYE_DICT, args
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--root", type=Path)
     parser.add_argument("-o", "--output", type=Path)
@@ -175,10 +170,13 @@ if __name__ == "__main__":
     
     for f in tqdm(glob.glob(str(args.root / "**" / "*.svg"), recursive=True)):
         try:
-            main(args, Path(f))
+            run(args, Path(f))
         except Exception as e:
             if args.error:
                 raise e
             print("An error occurred for", f)
             print("Error was", e)
-    
+
+
+if __name__ == "__main__":
+    main()

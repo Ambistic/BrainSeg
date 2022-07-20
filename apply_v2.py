@@ -8,11 +8,11 @@ from PIL import Image
 from scipy import ndimage
 from tqdm import tqdm
 
-from brainseg.bires_unet import bi_res_unet
+from brainseg.models.bires_unet import bi_res_unet
 from brainseg.provider import provider
 import segmentation_models as sm
 
-from brainseg.slide_provider import SlideHandler, BiResSlideHandler
+from brainseg.slide_provider import BiResSlideHandler
 
 sm.set_framework("tf.keras")
 

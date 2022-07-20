@@ -40,7 +40,7 @@ def segment(args, x, y, size):
         size=size,
     )))
     image = np.asarray(image) / 255.
-    mask = model.predict(np.array([image]))[0]
+    mask = model.predict(np.array([image]), verbose=False)[0]
     # mask = (mask > 0.5).astype(int).astype(np.uint8).reshape(mask.shape[:2])
     mask = ndimage.gaussian_filter(mask, sigma=(5, 5, 0), order=0)
     mask = (mask * 255.).astype(int).astype(np.uint8).reshape(mask.shape[:2])
@@ -50,7 +50,8 @@ def segment(args, x, y, size):
 
 def generate_coords(size, margin, full_size):
     patch_size = size - 2 * margin
-    limit_size = full_size[0] + margin - size, full_size[1] + margin - size
+    # limit_size = full_size[0] + margin - size, full_size[1] + margin - size
+    limit_size = full_size[0] - margin, full_size[1] - margin
 
     for i in range(-margin, limit_size[0], patch_size):
         for j in range(-margin, limit_size[1], patch_size):
@@ -64,6 +65,11 @@ def add_patch(full_mask, mask, x, y, size, margin):
     # top left is fine but bottom right can oversize
     true_size_x = min(full_mask.shape[0], x + size - margin) - x
     true_size_y = min(full_mask.shape[1], y + size - margin) - y
+
+    # set patch size to the expected size in full mask
+    # to remove the oversize
+    patch = patch[:true_size_x - margin,
+                  :true_size_y - margin]
 
     full_mask[x + margin:x + true_size_x,
               y + margin:y + true_size_y] = patch
