@@ -20,10 +20,10 @@ scikit-image = "^0.19.2"
 aicspylibczi = "^3.0.5"
 tensorflow = "^2.8.0"
 segmentation-models = "^1.0.1"
-wxwidgets = "^1.0.5"
 pypotrace = "^0.3"
 imgaug = "^0.4.0"
 pydot = "^1.4.2"
+PySide2 = "^5.15.2"
 
 [tool.poetry.dev-dependencies]
 

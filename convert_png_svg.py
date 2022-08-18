@@ -18,7 +18,7 @@ xmlns="http://www.w3.org/2000/svg"
 xmlns:xlink="http://www.w3.org/1999/xlink"
 xmlns:svg="http://www.w3.org/2000/svg"
 Version="1.1"
-viewBox="-30000 -30000 60000 60000"
+{viewbox}
 preserveAspectRatio="xMidYMid meet">
 </svg>
 """
@@ -54,7 +54,37 @@ def strip_svg(root):
 
 def save_svg(args, contours):
     if args.reference is None:
-        root = ET.fromstring(RAW)
+        if args.viewbox == "illustrator":
+            size = Image.open(args.file).size
+            # TODO correct the size and add a width + height
+            scaled0, scaled1 = size[0] / args.mpp, size[1] / args.mpp
+            # other = f'width="{scaled0 / 7.4 / 2 * 1.01}" height="{scaled1 / 7.4 / 2 * 1.01}"'
+            other = f'width="{scaled0 / 7.4 * args.downscale / 32}" ' \
+                    f'height="{scaled1 / 7.4 * args.downscale / 32}"'
+            viewbox = f'viewBox="0 0 {scaled0 * args.downscale / 32 / 1.01} {scaled1 * args.downscale / 32 / 1.01}" {other}'
+            root = ET.fromstring(RAW.format(viewbox=viewbox))
+        elif args.viewbox == "plotfast":
+            root = ET.fromstring(RAW.format(viewbox='viewBox="-30000 -30000 60000 60000"'))
+    else:
+        xml = ET.parse(args.reference)
+        root = xml.getroot()
+        strip_svg(root)
+    for contour in contours:
+        poly = ET.Element("polyline", dict(
+            points=numpy_to_points(contour),
+            style=f"stroke:rgb(0,248,255); fill:none; stroke-width:{args.stroke_width}"
+        ))
+        root.append(poly)
+    save_element(root, str(args.file.parent / args.file.stem) + ".svg")
+
+
+def old_save_svg(args, contours):
+    if args.coord_from_png:
+        size = Image.open(args.file).size
+        scaled_size = size[0] / args.mpp, size[1] / args.mpp
+        root = ET.fromstring(RAW.format(viewbox=f'viewBox="0 0 {scaled_size[0]} {scaled_size[1]}"'))
+    elif args.reference is None:
+        root = ET.fromstring(RAW.format(viewbox='viewBox="-30000 -30000 60000 60000"'))
     else:
         xml = ET.parse(args.reference)
         root = xml.getroot()
@@ -86,6 +116,8 @@ if __name__ == "__main__":
     parser.add_argument("--mpp", type=float, default=0.88)
     parser.add_argument("-s", "--min-surface", type=int, default=100)
     parser.add_argument("-t", "--threshold", type=int, default=100)
+    parser.add_argument("-v", "--viewbox", default="plotfast")
+    parser.add_argument("--stroke-width", type=int, default=100)
 
     args = parser.parse_args()
     args.file = Path(args.file)
