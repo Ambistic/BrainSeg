@@ -119,7 +119,7 @@ def multires_unet(n_res=2, n_classes=1, im_sz=224, n_channels=3, n_filters_start
 
     if all_outputs:
         model = Model(inputs=[inputs] + low_inputs,
-                      outputs=conv10 + low_outputs)
+                      outputs=[conv10] + low_outputs)
     else:
         model = Model(inputs=[inputs] + low_inputs,
                       outputs=conv10)

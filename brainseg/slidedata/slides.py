@@ -5,8 +5,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List
 
-from openslide import OpenSlide
-
 OPEN_SLIDE_FORMATS = [
     ".svs",
     ".tif",
@@ -41,7 +39,3 @@ def find_slides_in_dir(slides_root_dir: str) -> List[str]:
 
         return slides_files
 
-
-@lru_cache
-def load_slide(file: [str | Path]) -> OpenSlide:
-    return OpenSlide(str(Path(file)))

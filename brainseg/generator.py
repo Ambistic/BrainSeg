@@ -100,3 +100,76 @@ class InfiniteGenerator(Generator):
         ret = self[self.n]
         self.n += 1
         return ret
+
+
+class XGenerator(Sequence):
+    def __init__(
+            self,
+            data,
+            batch_size=32,
+            preprocess=None,
+            ):
+        self.data = data
+        self.preprocess = preprocess
+        self.batch_size = batch_size
+        self.indexes = list(range(len(self.data)))
+
+    def __data_generation(self, batch):
+        x = []
+
+        for index in batch:
+            x_ = self.data.image(index)
+            if self.preprocess is not None:
+                x_ = self.preprocess(x_)
+            x.append(x_)
+
+        return x
+
+    def __getitem__(self, index):
+        if index >= len(self):
+            return None
+
+        batch = self.indexes[
+            index * self.batch_size: (index + 1) * self.batch_size
+        ]
+
+        # Generate data
+        x = self.__data_generation(batch)
+
+        # handle if format is list
+        if isinstance(x[0], list):
+            x = swapaxis(x)
+        else:
+            x = np.array(x)
+
+        return x
+
+
+class X0TrainGenerator(XGenerator):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.on_epoch_end()
+
+    def __len__(self):
+        return floor(len(self.data) / self.batch_size)
+
+    def on_epoch_end(self):
+        shuffle(self.indexes)
+
+    def __getitem__(self, item):
+        x = super().__getitem__(item)
+        return x, None
+
+
+class XTestGenerator(XGenerator):
+    def __len__(self):
+        return ceil(len(self.data) / self.batch_size)
+
+
+class X0TestGenerator(XGenerator):
+    def __len__(self):
+        return ceil(len(self.data) / self.batch_size)
+
+    def __getitem__(self, item):
+        x = super().__getitem__(item)
+        return x, None

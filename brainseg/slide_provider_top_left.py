@@ -94,7 +94,6 @@ def patch_from_mask(slide, mask, origin, downscale, size, background=0):
 
     shift_x = max(0, -int(i * conversion_factor))
     shift_y = max(0, -int(j * conversion_factor))
-    print(shift_y, shift_x)
 
     arr = mask[int(i * conversion_factor) + shift_x:int((i + size) * conversion_factor),
                int(j * conversion_factor) + shift_y:int((j + size) * conversion_factor)]
@@ -117,7 +116,7 @@ class SlideMaskHandler(DataHandler):
     def __init__(self, slide_paths, masks_root, mask_name):
         self.name = "slide_mask"
         self.slide_paths = slide_paths
-        self.map_path_name = {basename(x): x for x in self.slide_paths}
+        self.map_path_name = {basename(x): str(x) for x in self.slide_paths}
         self.masks_root = Path(masks_root)
         self.mask_name = mask_name
 
