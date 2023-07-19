@@ -2,11 +2,11 @@
 # coding: utf-8
 from tqdm import tqdm
 
-from brainseg.slide_provider import get_mask_from_slidepath, BiResMultiMaskSlideHandler
+from brainseg.path import get_mask_from_slidepath
 from brainseg.streamlit.manager import init_curation_dataset, fill_curation_dataset, is_empty
+from brainseg.slide_provider import BiResSlideHandler
 from brainseg.provider import provider
 from brainseg.loader import Loader
-from brainseg.utils import multi_to_rgb, to_color
 
 import aicspylibczi
 import os
@@ -71,12 +71,11 @@ def build_czi_patches(fp, downsample, size):
     return patches
 
 
-def preprocess_curation_dataset(args, d, x, y):
+def preprocess_curation_dataset(d, x, y):
     xa, xb = x
     xa = xa.astype(np.uint8)
     xb = xb.astype(np.uint8)
-    # colors here
-    y = multi_to_rgb(y, args.color)
+    y = y * 255
 
     data_name = f"{Path(d[1]['slidepath']).name}_{d[1]['ori_x']}_{d[1]['ori_y']}"
     res = dict(
@@ -85,13 +84,12 @@ def preprocess_curation_dataset(args, d, x, y):
         lowres_image=Image.fromarray(xb),
         mask=Image.fromarray(y)
     )
-
     return res
 
 
 def filter_patches(args, all_patches):
     if args.filter is None:
-        return all_patches
+        return
 
     # for each patch
     keep = []
@@ -103,7 +101,7 @@ def filter_patches(args, all_patches):
         modified_patch[1]["ori_x"] = int(modified_patch[1]["ori_x"] - modified_patch[1]["size"] * 3/4)
         modified_patch[1]["ori_y"] = int(modified_patch[1]["ori_y"] - modified_patch[1]["size"] * 3/4)
 
-        if provider.mask(modified_patch).sum() == 0:
+        if is_empty(Image.fromarray(provider.mask(modified_patch) * 255)):
             continue
 
         keep.append(patch)
@@ -116,7 +114,7 @@ def main(args):
     keep = only_new_slides(keep, args.curated_dataset)
     print(f"Running for {len(keep)} slides")
 
-    sh = BiResMultiMaskSlideHandler(args.slides, args.masks, areas=args.area)
+    sh = BiResSlideHandler(args.slides, args.masks, area=args.area)
     provider.register(sh)
 
     all_patches = sum([build_czi_patches(args.slides / sl, args.downsample, args.size) for sl in keep], [])
@@ -127,7 +125,7 @@ def main(args):
     # all_patches = all_patches[:500]
     print(f"Limiting to {len(all_patches)} patches")
 
-    loader = Loader(all_patches, preprocess=lambda *x: preprocess_curation_dataset(args, *x))
+    loader = Loader(all_patches, preprocess=preprocess_curation_dataset)
 
     init_curation_dataset(args.curated_dataset)
     # here we can filter for border
@@ -140,8 +138,8 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--masks", help="Path of the masks")
     parser.add_argument("-c", "--curated_dataset", help="Path of the curated dataset")
     parser.add_argument("-n", "--name", help="Name of the run")
-    parser.add_argument("-a", "--area", help="Area to use", nargs="+")
-    parser.add_argument("-d", "--downsample", help="Downsample for the images", type=int, default=8)
+    parser.add_argument("-a", "--area", help="Area to use")
+    parser.add_argument("-d", "--downsample", help="Downsample for the images", type=int, default=32)
     parser.add_argument("--size", help="Size of the patches", type=int, default=224)
     parser.add_argument("-f", "--filter", help="Type of filtering", default=None)
 
@@ -150,7 +148,6 @@ if __name__ == "__main__":
     args.slides = Path(args.slides)
     args.masks = Path(args.masks)
     args.curated_dataset = Path(args.curated_dataset)
-    args.color = to_color(args.area)
 
     print(f"Running with slides : {args.slides}\nmasks: {args.masks}\n"
           f"dataset: {args.curated_dataset}\nname: {args.name}")

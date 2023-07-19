@@ -10,6 +10,7 @@ import re
 from PIL import Image
 
 _CACHE = dict()
+_IMAGE_CACHE = dict()
 
 
 def affine_matrix(angles=None, trans=None):
@@ -56,7 +57,7 @@ def affine_matrix(angles=None, trans=None):
 def affine_image(img, affine):
     after_rot = image.resample_img(img,
                                    target_affine=affine @ img.affine,
-                                   target_shape=img.shape,
+                                   target_shape=img.shape[:3],
                                    interpolation='continuous')
     return after_rot
 
@@ -80,15 +81,18 @@ def oasis_path_to_mask(path):
 def load_mri(name, rotx, rotz):
     if not (name, rotx, rotz) in _CACHE:
         img = nib.load(name)
-        img = affine_image(img, affine_matrix(dict(x=rotx, y=0, z=rotz)))
+        if rotx != 0 or rotz != 0:
+            img = affine_image(img, affine_matrix(dict(x=rotx, y=0, z=rotz)))
         _CACHE[(name, rotx, rotz)] = img
 
     return _CACHE[(name, rotx, rotz)]
 
 
 def load_histo_image(desc):
-    img = Image.open(desc["image_name"])
-    return img
+    if desc["image_name"] not in _IMAGE_CACHE:
+        _IMAGE_CACHE[desc["image_name"]] = Image.open(desc["image_name"])
+
+    return _IMAGE_CACHE[desc["image_name"]]
 
 
 def load_mri_image(desc):
@@ -160,8 +164,7 @@ def list_descriptors_histo_only(slides):
     return descriptors
 
 
-def list_descriptors_mri_only(images, extractor=extract_monkey_name):
-    # TODO generate differently !
+def list_descriptors_mri_only(images, extractor=extract_monkey_name, has_mask=True):
     # for each mri file
     # cut -20 and +20, and generate a "slide" per index
     descriptors = []
@@ -172,11 +175,12 @@ def list_descriptors_mri_only(images, extractor=extract_monkey_name):
         for index in range(+20, size - 20):
             desc = dict(
                 mri_name=image_name,
+                monkey_name=extractor(image_name),
                 slide_id=index,  # for triplet construction
                 rotx=0,
                 rotz=0,
                 mri_id=index,
-                has_mask=True,  # for mask switch
+                has_mask=has_mask,  # for mask switch
             )
             descriptors.append(desc)
 
@@ -247,3 +251,19 @@ class SelfHistoMRIHandler(DataHandler):
 
     def load_mask(self, element):
         return self.load_image(element)
+
+
+class SingleImageHandler(DataHandler):
+    def __init__(self):
+        super().__init__()
+        self.name = "single_image"
+
+    def load_image(self, element):
+        """
+        """
+        assert isinstance(element, dict), "Element is not a dict !"
+
+        return load_image(element)
+
+    def load_mask(self, element):
+        return None

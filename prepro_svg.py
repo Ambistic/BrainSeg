@@ -70,8 +70,7 @@ def build_export_with_cond(svg, export_path, keep_lines):
             svg.remove(x)
             
     save_element(svg, export_path)
-        
-        
+
         
 def build_export_area(svg, filepath):
     # outline only

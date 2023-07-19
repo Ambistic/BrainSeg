@@ -19,6 +19,25 @@ def save_element(el, path):
     et.write(str(path), pretty_print=True, xml_declaration=True, standalone='yes')
 
 
+def is_comment(el):
+    if isinstance(el, ET._Comment):
+        return True
+    return False
+
+
+def is_point(node):
+    if not isinstance(node.tag, str):
+        return False
+
+    elif "rect" in node.tag:
+        return True
+
+    elif "circle" in node.tag:
+        return True
+
+    return False
+
+
 def is_line(node):
     if not isinstance(node.tag, str):
         return False

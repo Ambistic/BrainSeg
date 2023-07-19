@@ -70,7 +70,7 @@ def save_svg(args, contours):
         root = xml.getroot()
         strip_svg(root)
     for contour in contours:
-        poly = ET.Element("polyline", dict(
+        poly = ET.Element("polygon", dict(
             points=numpy_to_points(contour),
             style=f"stroke:rgb(0,248,255); fill:none; stroke-width:{args.stroke_width}"
         ))

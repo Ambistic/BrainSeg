@@ -2,7 +2,7 @@
 # coding: utf-8
 from tqdm import tqdm
 
-from brainseg.slide_provider import get_mask_from_slidepath
+from brainseg.path import get_mask_from_slidepath
 from brainseg.streamlit.manager import init_curation_dataset, fill_curation_dataset, is_empty
 from brainseg.slide_provider import SlideHandler
 from brainseg.provider import provider

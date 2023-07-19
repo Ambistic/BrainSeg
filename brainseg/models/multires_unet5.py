@@ -1,7 +1,7 @@
 # u-net model with up-convolution or up-sampling and weighted binary-crossentropy as loss func
 
 from keras.models import Model
-from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate, \
+from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, Concatenate, \
     Conv2DTranspose, BatchNormalization, Dropout, Cropping2D
 
 from brainseg.models.block import ConvolutionBlock, ResidualBlock
@@ -31,6 +31,7 @@ def lower_res_unet(log_downscale, n_classes=1, im_sz=224, n_channels=3, n_filter
 
     inputs = Input((im_sz, im_sz, n_channels))
     last = inputs
+    conv = None
 
     for i in range(depth):
         conv = ConvolutionBlock(n_filters_layers[i], (3, 3))(last)
@@ -45,20 +46,27 @@ def lower_res_unet(log_downscale, n_classes=1, im_sz=224, n_channels=3, n_filter
 
     # INCREASING SIZE
     escaped_layer = None
+    last = conv
 
     for down, i in enumerate(reversed(range(depth - 1))):
         if upconv:
-            up = concatenate([Conv2DTranspose(n_filters, (2, 2), strides=(2, 2), padding='same')(last), conv_layers[i]])
+            up = Concatenate(axis=3, name=f"low_concat_{log_downscale}_{down}")(
+                [Conv2DTranspose(n_filters, (2, 2), strides=(2, 2), padding='same',
+                                 name=f"low_convtrans_{log_downscale}_{down}"
+                                 )(last), conv_layers[i]],
+            )
         else:
-            up = concatenate([UpSampling2D(size=(2, 2))(last), conv_layers[i]])
-        up = BatchNormalization()(up)
-        up = ConvolutionBlock(n_filters_layers[i], (3, 3))(up)
-        conv = ResidualBlock(n_filters_layers[i])(up)
-        conv = ResidualBlock(n_filters_layers[i])(conv)
+            up = Concatenate(axis=3, name=f"low_concat_{log_downscale}_{down}")(
+                [UpSampling2D(size=(2, 2), name=f"low_up_{log_downscale}_{down}")(last), conv_layers[i]],
+            )
+        up = BatchNormalization(name=f"low_up_{log_downscale}_{down}")(up)
+        up = ConvolutionBlock(n_filters_layers[i], (3, 3), name=f"low_conv_{log_downscale}_{down}")(up)
+        conv = ResidualBlock(n_filters_layers[i], name=f"low_res_a_{log_downscale}_{down}")(up)
+        conv = ResidualBlock(n_filters_layers[i], name=f"low_res_b_{log_downscale}_{down}")(conv)
         if down + 1 == log_downscale:
             escaped_layer = conv
         if i != 0:
-            conv = Dropout(droprate)(conv)
+            conv = Dropout(droprate, name=f"low_dropout_{log_downscale}_{down}")(conv)
         last = conv
 
     crop_size = 7 * (2**log_downscale - 1)
@@ -86,6 +94,7 @@ def multires_unet(n_res=2, n_classes=1, im_sz=224, n_channels=3, n_filters_start
 
     inputs = Input((im_sz, im_sz, n_channels))
     last = inputs
+    conv = None
 
     for i in range(depth):
         conv = ConvolutionBlock(n_filters_layers[i], (3, 3))(last)
@@ -98,15 +107,17 @@ def multires_unet(n_res=2, n_classes=1, im_sz=224, n_channels=3, n_filters_start
             last = Dropout(droprate)(last)
             last = BatchNormalization()(last)
 
-    last = concatenate([last] + low_emb)
+    last = Concatenate()([conv] + low_emb)
 
     # INCREASING SIZE
 
     for i in reversed(range(depth - 1)):
         if upconv:
-            up = concatenate([Conv2DTranspose(n_filters, (2, 2), strides=(2, 2), padding='same')(last), conv_layers[i]])
+            up = Concatenate()(
+                [Conv2DTranspose(n_filters, (2, 2), strides=(2, 2), padding='same')(last), conv_layers[i]]
+            )
         else:
-            up = concatenate([UpSampling2D(size=(2, 2))(last), conv_layers[i]])
+            up = Concatenate()([UpSampling2D(size=(2, 2))(last), conv_layers[i]])
         up = BatchNormalization()(up)
         up = ConvolutionBlock(n_filters_layers[i], (3, 3))(up)
         conv = ResidualBlock(n_filters_layers[i])(up)

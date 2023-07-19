@@ -15,6 +15,7 @@ from tensorflow.keras.applications import resnet, efficientnet
 
 def get_embedder(target_shape, id_=0, freeze=True):
     weights = "imagenet" if target_shape[2] == 3 else None
+    print("weights are", weights)
     base = efficientnet.EfficientNetB2  # resnet.ResNet50
     base_cnn = base(
         weights=weights, input_shape=target_shape, include_top=False, pooling="avg",

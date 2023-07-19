@@ -3,8 +3,8 @@ from keras.layers import Conv2D, BatchNormalization, LeakyReLU, Add
 
 
 class ConvolutionBlock(Layer):
-    def __init__(self, filters, size, strides=(1, 1), padding='same', activation=True):
-        super(ConvolutionBlock, self).__init__()
+    def __init__(self, filters, size, strides=(1, 1), padding='same', activation=True, name=None):
+        super(ConvolutionBlock, self).__init__(name=name)
         self.act = None
         self.bn = None
         self.conv = None
@@ -28,8 +28,8 @@ class ConvolutionBlock(Layer):
 
 
 class ResidualBlock(Layer):
-    def __init__(self, num_filters=16):
-        super(ResidualBlock, self).__init__()
+    def __init__(self, num_filters=16, name=None):
+        super(ResidualBlock, self).__init__(name=name)
         self.num_filters = num_filters
         self.act = LeakyReLU(alpha=0.1)
         self.bn1 = BatchNormalization()
