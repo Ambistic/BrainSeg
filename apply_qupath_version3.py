@@ -212,8 +212,8 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--step", type=int, default=None)
-    parser.add_argument("--margin", type=int, default=56)
-    parser.add_argument("--size", type=int, default=224)
+    parser.add_argument("--margin", type=int, default=16)  # old 56
+    parser.add_argument("--size", type=int, default=224)  # old 224
     parser.add_argument("-d", "--downscale", type=int, default=8)
 
     args_ = fill_with_config(parser)

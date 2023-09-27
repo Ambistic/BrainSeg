@@ -6,6 +6,7 @@ from pathlib import Path
 import aicspylibczi
 from skimage.transform import resize
 from PIL import Image
+from shapely.geometry import MultiPolygon, Polygon
 
 from .geo import quickfix_multipolygon_shapely, get_polygon_by_classification
 from .path import get_mask_from_slidepath
@@ -429,12 +430,25 @@ class QuPathMultiSlideHandler(DataHandler):
         for i, structure in enumerate(element["structures"]):
             poly_structure = get_polygon_by_classification(geo, structure)
             poly_mask = poly_structure.intersection(square)
+            if not isinstance(poly_mask, (Polygon, MultiPolygon)):
+                poly_mask = MultiPolygon([p for p in poly_mask.geoms if isinstance(p, (Polygon, MultiPolygon))])
             poly_mask_ready = rescale_polygon(translate_polygon(poly_mask, -element["ori_x"], -element["ori_y"]),
                                               1 / element["downscale"])
 
             arr = np.zeros((element["size"], element["size"]), dtype=bool)
             if poly_mask_ready.area > 0:
-                c_mask = draw_polygon(arr, poly_mask_ready)
+                try:
+                    c_mask = draw_polygon(arr, poly_mask_ready)
+                except:
+                    print("bug")
+                    print(type(poly_structure))
+                    print(type(square))
+                    print(type(poly_mask))
+                    print(type(poly_mask_ready))
+                    print(MultiPolygon([p for p in poly_mask.geoms if isinstance(p, (Polygon, MultiPolygon))]))
+                    print(type(MultiPolygon(poly_mask)))
+                    print("end")
+                    raise
             else:
                 c_mask = arr
             full_mask[:, :, i] = c_mask[:, :].T  # maybe the transpose need to occur before ?

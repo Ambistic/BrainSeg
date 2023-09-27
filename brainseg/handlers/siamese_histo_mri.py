@@ -8,6 +8,10 @@ from nilearn import image
 import nibabel as nib
 import re
 from PIL import Image
+import geopandas as gpd
+
+from brainseg.utils import extract_classification_name
+from brainseg.viz.draw import draw_polygons_from_geopandas_3
 
 _CACHE = dict()
 _IMAGE_CACHE = dict()
@@ -106,12 +110,35 @@ def load_mri_image(desc):
     return img
 
 
+def load_annotation_as_image(desc):
+    if desc["annotation_path"] in _IMAGE_CACHE:
+        return _IMAGE_CACHE[desc["annotation_path"]]
+
+    histo_geojson = gpd.read_file(desc["annotation_path"])
+    histo_geojson["name"] = histo_geojson["classification"].apply(extract_classification_name)
+
+    _, _, max_x, max_y = histo_geojson.total_bounds
+    rescale = 1. / 250
+    shape = (int(max_y * rescale), int(max_x * rescale))
+
+    arr = np.zeros(shape)
+
+    histo_gm = draw_polygons_from_geopandas_3(arr, histo_geojson[histo_geojson["name"] == "auto_wm"], rescale)
+    histo_gm = np.repeat(histo_gm.reshape((*histo_gm.shape, 1)), 3, axis=2)
+    _IMAGE_CACHE[desc["annotation_path"]] = histo_gm
+
+    return histo_gm
+
+
 def load_image(desc):
     if desc["type"] == "mri":
         return load_mri_image(desc)
 
     elif desc["type"] == "histo":
         return load_histo_image(desc)
+
+    elif desc["type"] == "annotation":
+        return load_annotation_as_image(desc)
 
     else:
         raise AttributeError("Unrecognised descriptor, type provided is unknown")

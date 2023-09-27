@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 
 
@@ -15,9 +17,14 @@ def create_3d_histogram(data, shape, bin_starts, bin_stops, weights=None):
     Returns:
     ndarray: A 3D histogram array with the specified shape and bin coordinates.
     """
+
     bins = tuple(
         np.linspace(start, stop, num=shape[i] + 1) for i, (start, stop) in enumerate(zip(bin_starts, bin_stops))
     )
+
+    if data.size == 0:
+        return np.zeros(tuple(len(b) for b in bins))
+
     hist, _ = np.histogramdd(data, bins=bins, weights=weights)
     return hist
 
@@ -62,4 +69,28 @@ def interpolate(indices, values):
             y0, y1 = values[i-1], values[i]
             return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
+    return interp
+
+
+def interpolate_dicts(indices, values):
+    # Define the interpolation function
+    def interp(x):
+        i = bisect_left(indices, x)
+        if i == 0:
+            return values[0]
+        elif i == len(indices):
+            return values[-1]
+        else:
+            x0, x1 = indices[i-1], indices[i]
+            y0, y1 = values[i-1], values[i]
+            matrix = defaultdict(lambda: defaultdict(int))
+            cell_types = set(y0.keys()) | set(y1.keys())
+            for cell_type in cell_types:
+                areas = set(y0[cell_type].keys()) | set(y1[cell_type].keys())
+                for area in areas:
+                    v0 = y0[cell_type][area]
+                    v1 = y1[cell_type][area]
+                    matrix[cell_type][area] = v0 + (v1 - v0) * (x - x0) / (x1 - x0)
+
+            return matrix
     return interp

@@ -4,7 +4,13 @@ from typing import Sequence
 import geojson
 from geojson import loads, dumps
 from shapely import geometry
+from shapely.geometry import shape
 from shapely.ops import transform
+from shapely.geometry import Point, LineString, Polygon
+import geopandas as gpd
+import copy
+
+from shapely.validation import make_valid
 
 
 def quickfix_multipolygon(geo):
@@ -13,7 +19,6 @@ def quickfix_multipolygon(geo):
         if feat["geometry"]["type"] == "MultiPolygon" \
                 and len(feat["geometry"]["coordinates"]) == 1:
             feat["geometry"]["coordinates"].append([])
-
     return geo
 
 
@@ -49,6 +54,22 @@ def quickfix_multipolygon_shapely(geo):
 
     feature_collection = geojson.FeatureCollection(features)
     return feature_collection
+
+
+def fix_geojson_file(filename):
+    with open(filename, 'r') as f:
+        data = geojson.load(f)
+
+    # Iterate through features and add empty coordinates to Multipolygons
+    for feature in data['features']:
+        if feature['geometry']['type'] == 'MultiPolygon':
+            for coord in feature['geometry']['coordinates']:
+                if len(coord) == 1 and len(coord[0]) == 0:
+                    coord.pop()
+
+    # Save the modified data back to the same location
+    with open(filename, 'w') as f:
+        geojson.dump(data, f, indent=2)
 
 
 def get_gm_polygon(geo):
@@ -212,3 +233,143 @@ def create_inverse_affine_mapping(center_x=0, center_y=0, rot=0, flip=False, shi
         return x, y
 
     return mapping_function
+
+
+def transform_forward_histo(geo, args):
+    geo = geo.copy()
+    feats = geo["features"].copy()
+
+    def rescale(x, y):
+        return x / args.histo_downscale, y / args.histo_downscale
+
+    new_feats = list(map(
+        lambda f: geojson_mapping(f, rescale),
+        feats
+    ))
+
+    geo["features"] = new_feats
+    return geo
+
+
+def extract_shape(histo_geojson, name):
+    return histo_geojson[histo_geojson["name"] == name].iloc[0]
+
+
+def polygons_to_geopandas(polygons_list):
+    shapes_series = gpd.GeoSeries(polygons_list)
+    gdf = gpd.GeoDataFrame(geometry=shapes_series)
+    return gdf
+
+
+def get_feature_center(feature):
+    poly = shape(feature["geometry"])
+    x1, y1, x2, y2 = poly.bounds
+
+    return (x1 + x2) / 2, (y1 + y2) / 2
+
+
+def split_multipolygons_to_polygons(feature_collection):
+    new_features = []
+
+    for feature in feature_collection['features']:
+        geometry = feature['geometry']
+        properties = feature['properties']
+
+        # If the geometry is a MultiPolygon, split it into individual polygons
+        if geometry['type'] == 'MultiPolygon':
+            for polygon_coords in geometry['coordinates']:
+                new_feature = copy.deepcopy(feature)
+                new_feature['geometry'] = {
+                    'type': 'Polygon',
+                    'coordinates': polygon_coords
+                }
+                new_features.append(new_feature)
+        else:
+            # If it's not a MultiPolygon, keep the original feature
+            new_features.append(feature)
+
+    # Create a new GeoJSON Feature Collection with the split polygons
+    split_feature_collection = {
+        'type': 'FeatureCollection',
+        'features': new_features
+    }
+
+    return split_feature_collection
+
+
+def transform_from_manual_correction(geo, full_params, direction="forward"):
+    geo = geo.copy()
+    feats = geo["features"].copy()
+    new_feats = []
+
+    for feat, full_param in zip(feats, full_params):
+        if full_param is None:
+            new_feats.append(feat)
+            continue
+
+        center_x, center_y, flip, rotation_angle, shift_x, shift_y = full_param
+        # error is here, it's not the center of the feat but of the pial poly
+        # center_x, center_y = get_feature_center(feat)
+
+        if direction == "forward":
+            map_func = create_affine_mapping(flip=flip, rot=rotation_angle,
+                                             shift_x=shift_x, shift_y=shift_y,
+                                             center_x=center_x, center_y=center_y)
+        elif direction == "backward":
+            map_func = create_inverse_affine_mapping(flip=flip, rot=rotation_angle,
+                                                     shift_x=shift_x, shift_y=shift_y,
+                                                     center_x=center_x, center_y=center_y)
+        else:
+            raise ValueError(f"Not recognized direction : {direction}")
+
+        new_feat = geojson_mapping(feat, map_func)
+        new_feats.append(new_feat)
+
+    geo["features"] = new_feats
+    return geo
+
+
+def process_feature(feature):
+    geom = shape(feature['geometry'])
+
+    if not geom.is_valid:
+        print("validity issue")
+        geom = make_valid(geom)
+
+    if feature["geometry"]["type"] == "MultiPolygon":
+        geom = list(geom.geoms)
+
+    return geom
+
+
+def flatten_geojson(geo):
+    flattened_shapes = []
+
+    for feature in geo['features']:
+        shape = process_feature(feature)
+
+        if isinstance(shape, list):
+            flattened_shapes.extend(shape)
+        else:
+            flattened_shapes.append(shape)
+
+    return flattened_shapes
+
+
+def convert_multipolygons(feature):
+    geometry = feature["geometry"]
+    if geometry["type"] == "MultiPolygon":
+        polygons = list(shape(geometry).geoms)
+        return [{"type": "Feature", "properties": feature["properties"], "geometry": p} for p in polygons]
+    else:
+        return [feature]
+
+
+def explode_multipolygon_geojson(geo):
+    # Convert MultiPolygons to separate Polygons
+    converted_features = [convert_multipolygons(feature) for feature in geo["features"]]
+    flattened_features = [feature for sublist in converted_features for feature in sublist]
+
+    # Create a new GeoJSON object with the converted features
+    converted_geojson = {"type": "FeatureCollection", "features": flattened_features}
+    return converted_geojson

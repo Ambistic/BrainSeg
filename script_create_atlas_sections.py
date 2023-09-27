@@ -85,7 +85,7 @@ def generate_reduced_mapping(args):
 
     os.system(f"{args.wb_binary} -volume-reduce '{OUT_MAPPING}' INDEXMAX '{args.reduced_mapping_file}'")
     os.system(f"{args.wb_binary} -volume-reduce '{OUT_MAPPING}' SUM '{MASK_REDUCE}'")
-    os.system(f"{args.wb_binary} -volume-math '(mask > 5) * (6 + val * 2)' '{args.reduced_mapping_file}' "
+    os.system(f"{args.wb_binary} -volume-math 'round((mask > 5) * (6 + round(val) * 2))' '{args.reduced_mapping_file}' "
               f" -var mask '{MASK_REDUCE}' -var val '{args.reduced_mapping_file}'")
     print("Reduced mapping done")
 
@@ -102,7 +102,7 @@ def main(args):
 
         raw_cmd = args.wb_binary
         cmd = f'{raw_cmd} -volume-capture-plane "{args.reduced_mapping_file}" 1 ENCLOSING_VOXEL 1000 1000 ' \
-              f'0 256 {coord_values} "{output_path}"'
+              f'0 256 {coord_values} "{output_path}"'  # maybe here it should be 255 instead of 256
 
         os.system(cmd)
 

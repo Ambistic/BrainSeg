@@ -7,7 +7,10 @@ from geojson import load, FeatureCollection, dump, utils
 from skimage.draw import polygon
 from shapely import geometry
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
+from brainseg.config import fill_with_config
+from brainseg.path import build_path_histo
 from brainseg.utils import flatten
 
 # this is not good practice
@@ -180,17 +183,17 @@ def merge_geojson(args, json_cv: FeatureCollection, json_fluo: FeatureCollection
     return final
 
 
-def save_geojson(args, geo):
-    with open(args.output, "w") as f:
+def save_geojson(output_path, geo):
+    with open(output_path, "w") as f:
         dump(geo, f)
 
 
-def main(args):
-    print(args.cv, args.fluo)
-    with open(args.cv, "r") as f:
+def run(args, slice_id, fluo_path, cv_path, output_path):
+    print(cv_path, fluo_path)
+    with open(cv_path, "r") as f:
         geo_cv = load(f)
 
-    with open(args.fluo, "r") as f:
+    with open(fluo_path, "r") as f:
         geo_fluo = load(f)
 
     geo_fluo = simplify_all(geo_fluo)
@@ -217,19 +220,42 @@ def main(args):
 
     total_geojson = merge_geojson(args, geo_cv, geo_fluo, matrix)
 
-    save_geojson(args, total_geojson)
+    save_geojson(output_path, total_geojson)
+
+
+def main(args):
+    for slice_id in tqdm(range(args.start, args.end, args.step)):
+        fluo_path = build_path_histo(args.fluo_dir, slice_id, args.fluo_mask)
+        cv_path = build_path_histo(args.annotations_dir, slice_id, args.full_annotations_mask)
+        output_path = build_path_histo(args.annotations_dir, slice_id, args.merged_annotations_mask)
+        try:
+            run(args, slice_id, fluo_path, cv_path, output_path)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Not found {e}")
+        else:
+            pass
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cv", type=Path)  # output is made in the cv
-    parser.add_argument("--fluo", type=Path)
-    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("-c", "--config", type=Path, default=Path("/media/tower/LaCie/REGISTRATION_PROJECT/"
+                                                                  "TMP_PIPELINE_M148/config.ini"))
+
+    parser.add_argument("--fluo_dir", type=Path, default=None)
+    parser.add_argument("--fluo_mask", type=str, default=None)
+    parser.add_argument("--annotations_dir", type=str, default=None)
+    parser.add_argument("--full_annotations_mask", type=str, default=None)
+    parser.add_argument("--merged_annotations_mask", type=str, default=None)
+    parser.add_argument("--start", type=int, default=None)
+    parser.add_argument("--end", type=int, default=None)
+    parser.add_argument("--step", type=int, default=None)
+
     parser.add_argument("--fluo-outline-name", default="Contour")
     parser.add_argument("--cv-outline-name", default="auto_outline")
-    parser.add_argument("-sx", "--size-x", type=int, default=70000)
-    parser.add_argument("-sy", "--size-y", type=int, default=35000)
+    parser.add_argument("-sx", "--size-x", type=int, default=100000)
+    parser.add_argument("-sy", "--size-y", type=int, default=100000)
     parser.add_argument("-d", "--downscale", type=int, default=32)
 
-    parsed_args = parser.parse_args()
-    main(parsed_args)
+    args_ = fill_with_config(parser)
+
+    main(args_)

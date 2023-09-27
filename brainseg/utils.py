@@ -1,4 +1,5 @@
 import pickle
+import re
 from itertools import product
 from math import ceil, sqrt
 
@@ -7,6 +8,7 @@ import numpy as np
 from PIL import Image
 from geojson import load, dump
 from skimage import io
+import hashlib
 
 
 def save_data(data, fn):
@@ -229,3 +231,45 @@ def read_txt(file_path):
     with open(file_path) as f:
         file_data = f.readlines()
     return file_data
+
+
+def write_txt(file_path, data):
+    with open(file_path, 'w') as f:
+        if isinstance(data, str):
+            f.write(data)
+        elif isinstance(data, list):
+            for line in data:
+                f.write(line + '\n')
+        else:
+            raise TypeError("Data must be either a string or a list of strings.")
+
+
+def replace_lines_in_file(file_path, pattern, replacement):
+    # Read the file
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    # Replace lines matching the pattern
+    new_lines = [re.sub(pattern, replacement, line) for line in lines]
+
+    # Write the modified lines back to the file
+    with open(file_path, 'w') as file:
+        file.writelines(new_lines)
+
+
+def hash_file(file_path):
+    # Create a hashlib object
+    hash_object = hashlib.sha256()
+
+    # Open the file in binary mode and read it in chunks
+    with open(file_path, 'rb') as file:
+        while True:
+            data = file.read(65536)  # Read 64KB at a time (adjust the chunk size as needed)
+            if not data:
+                break
+            hash_object.update(data)
+
+    # Get the hexadecimal representation of the hash
+    hash_value = hash_object.hexdigest()
+
+    return hash_value

@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from pathlib import Path
 import itk
 from PIL import Image
@@ -8,12 +9,20 @@ from skimage import io
 from skimage.transform import rescale
 import geopandas as gpd
 from tqdm import tqdm
-import re
+import matplotlib.pyplot as plt
 
 from brainseg.config import fill_with_config
+from brainseg.geo import polygons_to_geopandas
+from brainseg.misc.image_geometry import image_manual_correction
+from brainseg.misc.manual_correction import process_pial_gm_manual_correction
+from brainseg.parser import parse_dict_param
 from brainseg.path import build_path_mri, build_path_histo
-from brainseg.utils import extract_classification_name, get_processing_type
-from brainseg.viz.draw import draw_polygons_from_geopandas
+from brainseg.utils import (
+    extract_classification_name, get_processing_type, replace_lines_in_file, read_txt, hash_file,
+    write_txt,
+)
+from brainseg.viz.draw import draw_polygons_from_geopandas_corrected, draw_polygons_from_geopandas_2, \
+    draw_polygons_from_geopandas_3
 
 
 def binarize_mask(mask):
@@ -32,33 +41,14 @@ def binarize_white_mask(mask):
     return mask.astype(int)
 
 
-def replace_lines_in_file(file_path, pattern, replacement):
-    # Read the file
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    # Replace lines matching the pattern
-    new_lines = [re.sub(pattern, replacement, line) for line in lines]
-
-    # Write the modified lines back to the file
-    with open(file_path, 'w') as file:
-        file.writelines(new_lines)
-
-
-def format_histo_mri(histo_raw, histo_pial, histo_gm,
-                     mri_raw, mri_pial, mri_gm, mri_wm,
-                     histo_rescale_factor=1.):
+def format_histo(histo_raw, histo_pial, histo_gm,
+                 histo_rescale_factor=1.):
     # binarize
     histo_pial = expand_mask_dims(binarize_mask(histo_pial))
     histo_gm = expand_mask_dims(binarize_mask(histo_gm))
 
-    mri_pial = expand_mask_dims(binarize_white_mask(mri_pial))
-    mri_gm = expand_mask_dims(binarize_white_mask(mri_gm))
-    mri_wm = expand_mask_dims(binarize_white_mask(mri_wm))
-
     # maskify
     histo_raw = histo_raw * histo_pial + 255 * (1 - histo_pial)
-    mri_raw = mri_raw * mri_pial
 
     # rescale
     histo_raw = rescale(histo_raw.astype(float), histo_rescale_factor, anti_aliasing=False, channel_axis=2)
@@ -67,41 +57,66 @@ def format_histo_mri(histo_raw, histo_pial, histo_gm,
 
     # format
     histo_concat = [img[:, :, i] for img in [histo_raw, histo_pial, histo_gm] for i in range(img.shape[2])]
+
+    return histo_concat
+
+
+def format_mri(mri_raw, mri_pial, mri_gm, mri_wm,):
+    mri_pial = expand_mask_dims(binarize_white_mask(mri_pial))
+    mri_gm = expand_mask_dims(binarize_white_mask(mri_gm))
+    mri_wm = expand_mask_dims(binarize_white_mask(mri_wm))
+    mri_raw = mri_raw * mri_pial
     mri_concat = [img[:, :, i] for img in [mri_raw, mri_pial, mri_gm, mri_wm] for i in range(img.shape[2])]
 
-    return histo_concat, mri_concat
+    return mri_concat
 
 
-def build_images(histo_root, histo_annotation_root, mri_root, section_id,
-                 filename_mask_raw, filename_mask_annotation,
-                 predownscale_histo=0.1, redownscale_histo=0.25):
+def build_image_histo(histo_root, histo_annotation_root, section_id,
+                      filename_mask_raw, filename_mask_annotation,
+                      dict_affine_params=None,
+                      predownscale_histo=0.1, redownscale_histo=0.25):
     """Create the gray images for both histology and mri"""
+    if dict_affine_params is None:
+        dict_affine_params = dict()
+
+    histo_geojson = gpd.read_file(build_path_histo(
+        histo_annotation_root, section_id, filename_mask_annotation))
+    histo_geojson["name"] = histo_geojson["classification"].apply(extract_classification_name)
+
+    ordered_pial, _, params, _, transformed_pial, transformed_gm = process_pial_gm_manual_correction(
+        dict_affine_params, histo_geojson, section_id)
+
+    histo_raw = io.imread(build_path_histo(histo_root, section_id, filename_mask_raw))
+    histo_raw = rescale(histo_raw.astype(float), redownscale_histo, anti_aliasing=False, channel_axis=2)
+
+    margin = (200, 100)
+    shape = (histo_raw.shape[0] + margin[1], histo_raw.shape[1] + margin[0])
+
+    arr = np.zeros(shape)
+
+    histo_pial = draw_polygons_from_geopandas_3(arr.copy(), polygons_to_geopandas(transformed_pial),
+                                                predownscale_histo * redownscale_histo, reverse=True)
+    histo_gm = draw_polygons_from_geopandas_3(arr.copy(), polygons_to_geopandas(transformed_gm),
+                                              predownscale_histo * redownscale_histo, reverse=True)
+
+    histo_mod = image_manual_correction(histo_raw, params, ordered_pial, margin=margin,
+                                        swap_xy=True, background=0, scale=predownscale_histo * redownscale_histo)
+
+    histo_concat = format_histo(histo_mod, histo_pial, histo_gm)
+    image_histo = histo_concat[1].max() - histo_concat[1] + histo_concat[3] * 100 + histo_concat[4] * 100
+    return image_histo
+
+
+def build_image_mri(mri_root, section_id):
     mri_gm = io.imread(build_path_mri(mri_root, section_id, "gm"))
     mri_pial = io.imread(build_path_mri(mri_root, section_id, "pial"))
     mri_wm = io.imread(build_path_mri(mri_root, section_id, "wm"))
     mri_raw = io.imread(build_path_mri(mri_root, section_id, "raw"))
 
-    histo_geojson = gpd.read_file(build_path_histo(
-        histo_annotation_root, section_id, filename_mask_annotation))
-    histo_geojson["name"] = histo_geojson["classification"].apply(extract_classification_name)
-    histo_raw = io.imread(build_path_histo(histo_root, section_id, filename_mask_raw))
-
-    histo_raw = rescale(histo_raw.astype(float), redownscale_histo, anti_aliasing=False, channel_axis=2)
-
-    arr = np.zeros((histo_raw.shape[0], histo_raw.shape[1]))
-
-    histo_pial = draw_polygons_from_geopandas(arr, histo_geojson[histo_geojson["name"] == "auto_outline"],
-                                              predownscale_histo * redownscale_histo, reverse=True)
-    histo_gm = draw_polygons_from_geopandas(arr, histo_geojson[histo_geojson["name"] == "auto_wm"],
-                                            predownscale_histo * redownscale_histo, reverse=True)
-
-    histo_concat, mri_concat = format_histo_mri(histo_raw, histo_pial, histo_gm,
-                                                mri_raw, mri_pial, mri_gm, mri_wm)
-
-    image_histo = histo_concat[1].max() - histo_concat[1] + histo_concat[3] * 100 + histo_concat[4] * 100
+    mri_concat = format_mri(mri_raw, mri_pial, mri_gm, mri_wm)
     image_mri = mri_concat[1] + mri_concat[4] * 100
 
-    return image_histo, image_mri
+    return image_mri
 
 
 def compute_transform(image_histo, image_mri, output_directory, hemisphere):
@@ -116,6 +131,8 @@ def compute_transform(image_histo, image_mri, output_directory, hemisphere):
     parameter_map_affine["NumberOfResolutions"] = ['6.000000']
     parameter_map_affine["Metric"] = ["AdvancedNormalizedCorrelation"]
     parameter_map_affine["NumberOfSpatialSamples"] = ["50000"]
+    # parameter_map_affine["ResampleInterpolator"] = ["LinearInterpolator"]
+    # (AutomaticScalesEstimation "true")
 
     parameter_map_affine["AutomaticTransformInitialization"] = ["true"]
     parameter_map_affine["AutomaticTransformInitializationMethod"] = ["CenterOfGravity"]
@@ -285,14 +302,24 @@ def format_to_grey_image(image_array):
 def create_transforms(
         dir_histo, dir_mri, dir_histo_annotation,
         filename_mask_raw, filename_mask_annotation, section_id,
-        output_dir, hemisphere
+        output_dir, hemisphere, dict_affine_params, hash_param
 ):
     try:
-        image_histo, image_mri = build_images(
-            dir_histo, dir_histo_annotation, dir_mri, section_id,
-            filename_mask_raw, filename_mask_annotation
+        image_histo = build_image_histo(
+            dir_histo, dir_histo_annotation, section_id,
+            filename_mask_raw, filename_mask_annotation,
+            dict_affine_params=dict_affine_params
         )
+
+        image_mri = build_image_mri(
+            dir_mri, section_id
+        )
+
+        if image_histo.std() == 0 or image_mri.std() == 0:
+            raise RuntimeError("An image has constant value, this can't be registered !")
+
     except Exception as e:
+        # raise
         print(e)
         image_histo, image_mri = None, None
 
@@ -323,6 +350,22 @@ def create_transforms(
     format_to_grey_image(image_forward).save(output_folder_forward / "image_forward.png")
     format_to_grey_image(image_backward).save(output_folder_forward / "image_backward.png")
 
+    output_all = Path(output_dir) / "review"
+    output_all.mkdir(parents=True, exist_ok=True)
+    plt.figure(figsize=(12, 12))
+    plt.subplot(2, 2, 1)
+    plt.imshow(image_histo)
+    plt.subplot(2, 2, 2)
+    plt.imshow(image_mri)
+    plt.subplot(2, 2, 3)
+    plt.imshow(image_forward)
+    plt.subplot(2, 2, 4)
+    mri_raw = io.imread(build_path_mri(dir_mri, section_id, "raw"))
+    plt.imshow(mri_raw)
+    plt.savefig(str(output_all / f"{section_id}.png"))
+
+    write_txt(output_folder_forward / "hash.txt", hash_param)
+
     return True
 
 
@@ -330,13 +373,16 @@ def create_transform_from_dirs(args, dir_histo, dir_mri, dir_histo_annotation,
                                filename_mask_raw, filename_mask_annotation,
                                output_dir, start=0, end=500, step=1):
     sections_made = []
+    param_data = read_txt(args.manual_correction_file)
+    hash_param = hash_file(args.manual_correction_file)
+    dict_affine_params = parse_dict_param(",".join(param_data))
     for section_id in tqdm(range(start, end, step)):
         processing_type = get_processing_type(args.schedule_steps, args.schedule_transform_type, section_id)
 
         is_made = create_transforms(
             dir_histo, dir_mri, dir_histo_annotation,
             filename_mask_raw, filename_mask_annotation, section_id,
-            output_dir, processing_type
+            output_dir, processing_type, dict_affine_params, hash_param
         )
         if is_made:
             sections_made.append(section_id)
@@ -361,6 +407,7 @@ if __name__ == "__main__":
     parser.add_argument("--mri_section_dir", type=Path, default=None)
     parser.add_argument("--annotations_dir", type=Path, default=None)
     parser.add_argument("--full_annotations_mask", type=str, default=None)
+    parser.add_argument("--manual_correction_file", type=Path, default=None)
     parser.add_argument("--histo_mask", type=str, default=None)
     parser.add_argument("--transforms_dir", type=Path, default=None)
     parser.add_argument("--schedule_steps", type=str, default=None)

@@ -80,7 +80,7 @@ def main(args):
 
             volume_name = args.mri_dir / fname
             raw_cmd = args.wb_binary
-            max_val = 256 if ftype == "raw" else 1
+            max_val = 400 if ftype == "raw" else 1  # empirical 400
             cmd = f'{raw_cmd} -volume-capture-plane "{volume_name}" 1 TRILINEAR 1000 1000 ' \
                   f'0 {max_val} {coord_values} "{output_path}"'
             # print(cmd.split(" "))

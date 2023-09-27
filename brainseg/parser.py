@@ -17,10 +17,13 @@ def parse_nomenclature(code):
 
 
 def parse_dict_param(string):
+    string = string.replace("\n", ",")
     codes = string.split(",")
 
     d = dict()
     for code in codes:
+        if not code.strip():
+            continue
         slice_number, piece_number, flip, rotation_angle, shift_x, shift_y = parse_nomenclature(code)
         d[(slice_number, piece_number)] = (flip, rotation_angle, shift_x, shift_y)
 
