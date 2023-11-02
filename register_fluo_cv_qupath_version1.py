@@ -254,7 +254,7 @@ if __name__ == "__main__":
     parser.add_argument("--cv-outline-name", default="auto_outline")
     parser.add_argument("-sx", "--size-x", type=int, default=100000)
     parser.add_argument("-sy", "--size-y", type=int, default=100000)
-    parser.add_argument("-d", "--downscale", type=int, default=32)
+    parser.add_argument("-d", "--downscale", type=int, default=16)
 
     args_ = fill_with_config(parser)
 

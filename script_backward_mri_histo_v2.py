@@ -25,7 +25,7 @@ from skimage.segmentation import expand_labels
 from brainseg.config import fill_with_config
 from brainseg.geo import quickfix_multipolygon, quickfix_multipolygon_shapely, transform_backward_histo, \
     transform_rescale, record_point_coordinates, transform_from_dict, transform_from_manual_correction, \
-    split_multipolygons_to_polygons
+    split_multipolygons_to_polygons, fix_geojson_file
 from brainseg.misc.manual_correction import process_pial_gm_manual_correction, match_params
 from brainseg.misc.points import transfer_points
 from brainseg.parser import parse_dict_param
@@ -226,6 +226,7 @@ def run_slice(args, slice_id, dict_affine_params):
     histo_resized_space = transform_backward_mri_histo(args, vectorized_atlas, slice_id, processing_type)
 
     annotation_file = build_path_histo(args.annotations_dir, slice_id, args.merged_annotations_mask)
+    fix_geojson_file(annotation_file)
     histo = read_histo(annotation_file)
     histo_geojson = gpd.read_file(annotation_file)
     histo_geojson["name"] = histo_geojson["classification"].apply(extract_classification_name)

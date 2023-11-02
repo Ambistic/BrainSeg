@@ -67,6 +67,38 @@ def fix_geojson_file(filename):
                 if len(coord) == 1 and len(coord[0]) == 0:
                     coord.pop()
 
+    print("debug", len(data["features"]))
+    # remove not ok Polygons
+    filt_features = []
+    for feature in data['features']:
+        discard = False
+        if feature['geometry']['type'] == 'Polygon':
+            for coord in feature['geometry']['coordinates']:
+                if len(coord) < 3:
+                    discard = True
+                    print("Discarding a Polygon")
+        if not discard:
+            filt_features.append(feature)
+
+    data['features'] = filt_features
+    print("debug", len(data["features"]))
+    # remove not ok shapely
+    filt_features = []
+    for feature in data['features']:
+        discard = False
+        try:
+            shape(feature["geometry"])
+        except Exception as e:
+            print(f"A mistake occurs due to shapely error {e}")
+            # print(feature)
+            print("=" * 40)
+        else:
+            pass
+        if not discard:
+            filt_features.append(feature)
+
+    data['features'] = filt_features
+    print("debug", len(data["features"]))
     # Save the modified data back to the same location
     with open(filename, 'w') as f:
         geojson.dump(data, f, indent=2)
