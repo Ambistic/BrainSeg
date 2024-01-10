@@ -102,7 +102,7 @@ def main(args):
     all_parsed = [interp_func(i) for i in range(min(indices), max(indices), args.step)]
     res = reduce(add_count_matrices, all_parsed)
 
-    pd.DataFrame(res).to_csv(os.path.join(args.mri_atlas_dir, "count_cells.csv"))
+    pd.DataFrame(res).to_csv(os.path.join(args.root, "backward_count_cells.csv"))
     # export plots
     print("Exporting")
     export_plots(indices, values, reduce(lambda x, y: set(x) | set(y), res.values()),
@@ -119,6 +119,7 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--step", type=int, default=None)
+    parser.add_argument("--root", type=str, default=None)
     args_ = fill_with_config(parser)
 
     main(args_)

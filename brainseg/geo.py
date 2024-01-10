@@ -1,8 +1,11 @@
 import math
+import re
 from typing import Sequence
 
 import geojson
-from geojson import loads, dumps
+import numpy as np
+from geojson import loads, dumps, Point as GeoPoint, Feature, Polygon as GeoPolygon, FeatureCollection, \
+    LineString as GeoLineString
 from shapely import geometry
 from shapely.geometry import shape
 from shapely.ops import transform
@@ -11,6 +14,9 @@ import geopandas as gpd
 import copy
 
 from shapely.validation import make_valid
+
+from brainseg.svg.utils import is_point, is_polygon, points_to_numpy, css_to_dict, is_comment
+from prepro_svg import is_line
 
 
 def quickfix_multipolygon(geo):
@@ -405,3 +411,123 @@ def explode_multipolygon_geojson(geo):
     # Create a new GeoJSON object with the converted features
     converted_geojson = {"type": "FeatureCollection", "features": flattened_features}
     return converted_geojson
+
+
+def svg_to_geojson(svg, mapping_stroke_classification):
+    features = []
+    last_comment = None
+    for x in svg.iterchildren():
+        if is_point(x):
+            point_name = get_point_name_from_comment(str(last_comment))
+            if "x" in x.attrib:
+                kx, ky = "x", "y"
+            else:
+                kx, ky = "cx", "cy"
+            point = GeoPoint((float(x.attrib[kx]), float(x.attrib[ky])))
+            properties = {"classification": {"name": point_name}}
+            feat = Feature(geometry=point, properties=properties)
+            features.append(feat)
+
+        if is_polygon(x):
+            # process color
+            # add a polygon
+            coords = points_to_numpy(x.attrib["points"])
+            polygon = GeoPolygon([coords.tolist()])
+            style = css_to_dict(x.attrib["style"])
+            category = mapping_stroke_classification.get(style["stroke"], "none")
+            if category == "none":
+                print(style["stroke"])
+            properties = {"classification": {"name": category}}
+            feat = Feature(geometry=polygon, properties=properties)
+            features.append(feat)
+
+        if is_comment(x):
+            last_comment = x
+        else:
+            last_comment = None
+
+    return FeatureCollection(features)
+
+
+def svg_to_geojson_with_lines(svg, mapping_stroke_classification):
+    features = []
+    last_comment = None
+    for x in svg.iterchildren():
+        if is_point(x):
+            point_name = get_point_name_from_comment(str(last_comment))
+            if "x" in x.attrib:
+                kx, ky = "x", "y"
+            else:
+                kx, ky = "cx", "cy"
+            point = GeoPoint((float(x.attrib[kx]), float(x.attrib[ky])))
+            properties = {"classification": {"name": point_name}}
+            feat = Feature(geometry=point, properties=properties)
+            features.append(feat)
+
+        if is_polygon(x):
+            # process color
+            # add a polygon
+            coords = points_to_numpy(x.attrib["points"])
+            polygon = GeoPolygon([coords.tolist()])
+            style = css_to_dict(x.attrib["style"])
+            category = mapping_stroke_classification.get(style["stroke"], "none")
+            if category == "none":
+                print(style["stroke"])
+            properties = {"classification": {"name": category}}
+            feat = Feature(geometry=polygon, properties=properties)
+            features.append(feat)
+
+        if is_line(x):
+            # process color
+            # add a polygon
+            coords = points_to_numpy(x.attrib["points"])
+            polygon = GeoLineString([coords.tolist()])
+            style = css_to_dict(x.attrib["style"])
+            category = mapping_stroke_classification.get(style["stroke"], "none")
+            if category == "none":
+                print(style["stroke"], style)
+            properties = {"classification": {"name": category}}
+            feat = Feature(geometry=polygon, properties=properties)
+            features.append(feat)
+
+        if is_comment(x):
+            last_comment = x
+        else:
+            last_comment = None
+
+    return FeatureCollection(features)
+
+
+def simplify_line(line, tol=20):
+    if len(line) < 3:
+        return np.array(line)
+
+    line = geometry.LineString(np.array(line))
+    line = line.simplify(tol)  # arbitrary
+
+    return np.array(line.coords)
+
+
+def simplify_all(geo: FeatureCollection):
+    geo = geo.copy()
+
+    for feat in geo["features"]:
+        coords = feat["geometry"]["coordinates"]
+        if feat["geometry"]["type"] == "Polygon":
+            new_coords = [simplify_line(coords[0]).tolist()]
+        elif feat["geometry"]["type"] == "MultiPolygon":
+            new_coords = list(map(lambda x: [simplify_line(x[0]).tolist()], coords))
+        else:
+            new_coords = coords
+
+        feat["geometry"]["coordinates"] = new_coords
+
+    return geo
+
+
+def get_point_name_from_comment(comment):
+    match = re.search(r'<!-- Point (.*?) -->', comment)
+    if match:
+        s = match.group(1)
+        return s
+    return None

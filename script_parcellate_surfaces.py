@@ -40,7 +40,7 @@ def main(args):
         pscalar = os.path.join(os.path.dirname(args.nifti_reference), f"{cell_type}_LR.pscalar.nii")
         txt_file = os.path.join(os.path.dirname(args.nifti_reference), f"{cell_type}_values.txt")
         atlas_table = os.path.join(os.path.dirname(args.nifti_reference), f"{cell_type}_atlas.txt")
-        output_csv = os.path.join(os.path.dirname(args.nifti_reference), f"{cell_type}.csv")
+        output_csv = os.path.join(args.root, f"forward_{cell_type}.csv")
 
         os.system(f"cp '{out_surf_name}' '{left_metric}'")
         os.system(f"cp '{out_surf_name}' '{right_metric}'")
@@ -69,6 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--roi_right", type=str, default=None)
     parser.add_argument("--nifti_reference", type=str, default=None)
     parser.add_argument("--atlas", type=str, default=None)
+    parser.add_argument("--root", type=str, default=None)
     parser.add_argument("--wb_binary", type=str, default=None)
 
     args_ = fill_with_config(parser)

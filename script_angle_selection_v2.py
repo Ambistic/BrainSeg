@@ -159,15 +159,7 @@ def extract_mri_name(name):
 
 def list_histo_descriptors(args):
     descriptors = []
-    # for slice_id in range(args.start, args.end, args.step):
-    for slice_id in [63, 65, 69, 71, 75, 77, 81, 87, 89, 93, 95, 99, 101, 103, 105, 107,
-                     109, 111, 113, 117, 123, 125, 129, 131, 135, 137, 141, 145, 147, 149,
-                     153, 155, 159, 161, 165, 167, 171, 177, 179, 181, 183, 187, 197, 199,
-                     201, 205, 207, 211, 213, 215, 217, 219, 221, 223, 227, 229, 231, 233,
-                     239, 241, 243, 245, 247, 249, 251, 253, 257, 259, 261, 263, 265, 267,
-                     271, 273, 275, 277, 279, 283, 285, 287, 289, 291, 295, 297, 299, 301,
-                     309, 317, 319, 321, 323]:
-
+    for slice_id in range(args.start, args.end, args.step):
         slice_file = build_path_histo(
             args.annotations_dir, slice_id, args.full_annotations_mask)
 
@@ -186,7 +178,7 @@ def list_histo_descriptors(args):
 def get_embeddings_histo(args, embedder, handler_name):
     descriptors_self = list_histo_descriptors(args)
     for desc in descriptors_self:
-        desc["type"] = "annotation"
+        desc["type"] = "histo"  # HERE
     descriptors_self = list(map(lambda x: (handler_name, x), descriptors_self))
     if len(descriptors_self) == 0:
         raise ValueError("There are no input data, check the `histo_dir` is not empty and the `histo_mask` "
@@ -206,12 +198,12 @@ def list_descriptors_mri_only(args):
     # cut -20 and +20, and generate a "slide" per index
     descriptors = []
 
-    nib_img = nib.load(args.mri_gm_file)
+    nib_img = nib.load(args.mri_brain_file)
     size = nib_img.get_fdata().shape[1]
 
     for index in range(+20, size - 20):
         desc = dict(
-            mri_name=args.mri_gm_file,
+            mri_name=args.mri_brain_file,
             monkey_name="NA",
             slide_id=index,  # for triplet construction
             rotx=0,
@@ -394,7 +386,7 @@ if __name__ == "__main__":
     parser.add_argument("--annotations_dir", type=str, default=None)
     parser.add_argument("--full_annotations_mask", type=str, default=None)
     # "ribbon_both_GM.nii.gz"
-    parser.add_argument("--mri_gm_file", type=str, default=None)
+    parser.add_argument("--mri_brain_file", type=str, default=None)
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--step", type=int, default=None)

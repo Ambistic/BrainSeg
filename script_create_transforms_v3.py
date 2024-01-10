@@ -219,7 +219,7 @@ def compute_transform(image_histo, image_mri, output_directory, hemisphere, sect
             'MultiMetricMultiResolutionRegistration']
         parameter_map_bspline["Metric"] = ["AdvancedMattesMutualInformation", "TransformBendingEnergyPenalty",
                                            "CorrespondingPointsEuclideanDistanceMetric"]
-        parameter_map_bspline["Metric2Weight"] = ["10"]
+        parameter_map_bspline["Metric2Weight"] = ["0.01"]
     else:
         parameter_map_bspline["Metric"] = ["AdvancedMattesMutualInformation", "TransformBendingEnergyPenalty"]
 
@@ -469,6 +469,7 @@ def create_transform_from_dirs(args, dir_histo, dir_mri, dir_histo_annotation,
     hash_param = hash_file(args.manual_correction_file)
     dict_affine_params = parse_dict_param(",".join(param_data))
     for section_id in tqdm(range(start, end, step)):
+    # for section_id in tqdm([149, 111, 105, 101, 77, 73, 71, 69]):
         processing_type = get_processing_type(args.schedule_steps, args.schedule_transform_type, section_id)
 
         is_made = create_transforms(

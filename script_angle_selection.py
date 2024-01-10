@@ -161,14 +161,7 @@ def extract_mri_name(name):
 
 def list_histo_descriptors(args):
     descriptors = []
-    # for slice_id in range(args.start, args.end, args.step):
-    for slice_id in [63, 65, 69, 71, 75, 77, 81, 87, 89, 93, 95, 99, 101, 103, 105, 107,
-                     109, 111, 113, 117, 123, 125, 129, 131, 135, 137, 141, 145, 147, 149,
-                     153, 155, 159, 161, 165, 167, 171, 177, 179, 181, 183, 187, 197, 199,
-                     201, 205, 207, 211, 213, 215, 217, 219, 221, 223, 227, 229, 231, 233,
-                     239, 241, 243, 245, 247, 249, 251, 253, 257, 259, 261, 263, 265, 267,
-                     271, 273, 275, 277, 279, 283, 285, 287, 289, 291, 295, 297, 299, 301,
-                     309, 317, 319, 321, 323]:
+    for slice_id in range(args.start, args.end, args.step):
         slice_file = build_path_histo(
             args.histo_dir, slice_id, args.histo_mask
         )

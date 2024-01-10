@@ -26,8 +26,14 @@ if [ "$script_to_run" = "forward" ]; then
 elif [ "$script_to_run" = "backward" ]; then
   poetry run python script_backward_mri_histo_v2.py --config "$2"
   poetry run python script_count_neurons.py --config "$2"
+elif [ "$script_to_run" = "forward_backward" ]; then
+  poetry run python script_forward_histo_mri_v2.py --config "$2"
+  poetry run python script_reconstruct_density.py --config "$2"
+  poetry run python script_parcellate_surfaces.py --config "$2"
+  poetry run python script_backward_mri_histo_v2.py --config "$2"
+  poetry run python script_count_neurons.py --config "$2"
 elif [ "$script_to_run" = "segmentation" ]; then
-  poetry run python apply_v4.py --config "$2"
+  poetry run python apply_quapth_version3.py --config "$2"
   poetry run python convert_png_svg_qupath_version3.py --config "$2"
 elif [ "$script_to_run" = "make_sections" ]; then
   poetry run python script_create_mri_sections.py --config "$2"
@@ -35,7 +41,7 @@ elif [ "$script_to_run" = "make_sections" ]; then
 elif [ "$script_to_run" = "make_transform" ]; then
   poetry run python script_create_transforms_v3.py --config "$2"
 elif [ "$script_to_run" = "select_angle" ]; then
-  poetry run python script_angle_selection_v2.py --config "$2"
+  poetry run python script_angle_selection.py --config "$2"
 elif [ "$script_to_run" = "merge" ]; then
   poetry run python register_plotfast_cv_qupath_version2.py --config "$2"
 elif [ "$script_to_run" = "qc" ]; then

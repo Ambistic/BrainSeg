@@ -15,15 +15,15 @@ import tempfile
 from pathlib import Path
 import argparse
 import itk
-import re
 import numpy as np
 from scipy.ndimage import affine_transform, binary_erosion
-from geojson import load, FeatureCollection, dump, utils, Point, Polygon, Feature
+from geojson import load, FeatureCollection, dump, utils
 from scipy.ndimage import binary_dilation
 from skimage.draw import polygon
-from shapely import geometry
 import matplotlib
 from tqdm import tqdm
+
+from brainseg.geo import svg_to_geojson, simplify_line, simplify_all
 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -31,7 +31,7 @@ import lxml.etree as et
 
 from brainseg.config import fill_with_config
 from brainseg.path import build_path_histo
-from brainseg.svg.utils import is_polygon, css_to_dict, points_to_numpy, is_point, is_comment
+from brainseg.svg.utils import is_polygon, css_to_dict, points_to_numpy
 from brainseg.utils import flatten
 
 # this is not good practice
@@ -64,14 +64,6 @@ def draw_polygon_border(image, border_width=10, polygon_value=255, border_value=
     return result
 
 
-def get_point_name_from_comment(comment):
-    match = re.search(r'<!-- Point (.*?) -->', comment)
-    if match:
-        s = match.group(1)
-        return s
-    return None
-
-
 def extract_outline_svg(svg):
     # we assume there is only one outline
     for x in svg.iterchildren():
@@ -85,42 +77,6 @@ def extract_outline_svg(svg):
             return p
 
     raise IndexError("No outline found in the svg !")
-
-
-def svg_to_geojson(svg, mapping_stroke_classification):
-    features = []
-    last_comment = None
-    for x in svg.iterchildren():
-        if is_point(x):
-            point_name = get_point_name_from_comment(str(last_comment))
-            if "x" in x.attrib:
-                kx, ky = "x", "y"
-            else:
-                kx, ky = "cx", "cy"
-            point = Point((float(x.attrib[kx]), float(x.attrib[ky])))
-            properties = {"classification": {"name": point_name}}
-            feat = Feature(geometry=point, properties=properties)
-            features.append(feat)
-
-        if is_polygon(x):
-            # process color
-            # add a polygon
-            coords = points_to_numpy(x.attrib["points"])
-            polygon = Polygon([coords.tolist()])
-            style = css_to_dict(x.attrib["style"])
-            category = mapping_stroke_classification.get(style["stroke"], "none")
-            if category == "none":
-                print(style["stroke"])
-            properties = {"classification": {"name": category}}
-            feat = Feature(geometry=polygon, properties=properties)
-            features.append(feat)
-
-        if is_comment(x):
-            last_comment = x
-        else:
-            last_comment = None
-
-    return FeatureCollection(features)
 
 
 def get_matrix_from_elastix(image_histo, image_mri):
@@ -211,33 +167,6 @@ def draw_in_mask(mask, poly, downscale, value=255):
     cc = cc[valid_indices]
 
     mask[rr, cc] = value
-
-
-def simplify_line(line, tol=20):
-    if len(line) < 3:
-        return np.array(line)
-
-    line = geometry.LineString(np.array(line))
-    line = line.simplify(tol)  # arbitrary
-
-    return np.array(line.coords)
-
-
-def simplify_all(geo: FeatureCollection):
-    geo = geo.copy()
-
-    for feat in geo["features"]:
-        coords = feat["geometry"]["coordinates"]
-        if feat["geometry"]["type"] == "Polygon":
-            new_coords = [simplify_line(coords[0]).tolist()]
-        elif feat["geometry"]["type"] == "MultiPolygon":
-            new_coords = list(map(lambda x: [simplify_line(x[0]).tolist()], coords))
-        else:
-            new_coords = coords
-
-        feat["geometry"]["coordinates"] = new_coords
-
-    return geo
 
 
 def get_outline_mask(geo: FeatureCollection, key: str, shape, downscale):
