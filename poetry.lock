@@ -2742,6 +2742,14 @@ parallel = ["dask[complete]"]
 viz = ["matplotlib", "nc-time-axis", "seaborn"]
 
 [[package]]
+name = "xlwt"
+version = "1.3.0"
+description = "Library to create spreadsheet files compatible with MS Excel 97/2000/XP/2003 XLS files, on any platform, with Python 2.6, 2.7, 3.3+"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "zipp"
 version = "3.15.0"
 description = "Backport of pathlib-compatible object wrapper for zip files"
@@ -2756,7 +2764,7 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.11"
-content-hash = "e1f3072ed5663f038cdb7c46894096307d60e3016495649674fbb7e21a70a491"
+content-hash = "6140afdf2e4091172dc3cc96da12f3caf51c9eb04d5c3f98b8c216eed589c883"
 
 [metadata.files]
 absl-py = [
@@ -5151,6 +5159,10 @@ wrapt = [
 xarray = [
     {file = "xarray-2022.12.0-py3-none-any.whl", hash = "sha256:eaf3e4c0b62faebf7965f272ce76bc2fc1c9d93c2b966a390e929ef082a796dd"},
     {file = "xarray-2022.12.0.tar.gz", hash = "sha256:083d08e552a7647c7ece136dfa3a4b6a1379256beb55bbed8b8ddf05f1e14ec7"},
+]
+xlwt = [
+    {file = "xlwt-1.3.0-py2.py3-none-any.whl", hash = "sha256:a082260524678ba48a297d922cc385f58278b8aa68741596a87de01a9c628b2e"},
+    {file = "xlwt-1.3.0.tar.gz", hash = "sha256:c59912717a9b28f1a3c2a98fd60741014b06b043936dcecbc113eaaada156c88"},
 ]
 zipp = [
     {file = "zipp-3.15.0-py3-none-any.whl", hash = "sha256:48904fc76a60e542af151aded95726c1a5c34ed43ab4134b597665c86d7ad556"},

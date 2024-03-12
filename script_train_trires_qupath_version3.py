@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-
+import argparse
 # In[1]:
 
 import os
@@ -230,9 +230,15 @@ def main(descriptor_dir, directory, root_name, max_epochs, weights):
 
 if __name__ == "__main__":
     """This script automatically run an epoch starting from the previous model generated"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--root", type=Path)
+    parser.add_argument("-n", "--name", type=str)
+    parser.add_argument("-d", "--descriptors", type=Path)
+
+    args_ = parser.parse_args()
+
     directory = "/media/tower/LaCie/Data/models/trires/"
-    root_name = "model_test_vSep23"
-    max_epochs = 40
-    descriptor_dir = Path("/srv/share/descriptors/v2/")
-    weights = "/media/tower/LaCie/Data/models/trires/model_test_vJun23_e15_iou0.943.h5"
-    main(descriptor_dir, directory, root_name, max_epochs, weights)
+    root_name = "model_test_vJan24"
+    max_epochs = 20
+
+    main(args_.descriptors, args_.root, args_.name, max_epochs, None)

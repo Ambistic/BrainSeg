@@ -77,7 +77,7 @@ def get_contours_v2(args, slice_id):
     mask = ndimage.gaussian_filter(mask, sigma=(SIGMA, SIGMA), order=0)
     mask = mask > args.threshold
     # why ? it's too much I think
-    mask = ndimage.binary_erosion(mask, iterations=SIGMA)
+    # mask = ndimage.binary_erosion(mask, iterations=SIGMA)
     bmp = potrace.Bitmap(mask)
     path_wm = bmp.trace(alphamax=0.0, turnpolicy=potrace.TURNPOLICY_BLACK, turdsize=args.min_surface)
 
@@ -86,7 +86,7 @@ def get_contours_v2(args, slice_id):
     mask = ndimage.gaussian_filter(mask, sigma=(SIGMA, SIGMA), order=0)
     mask = mask > args.threshold
     # why ?
-    mask = ndimage.binary_erosion(mask, iterations=SIGMA)
+    # mask = ndimage.binary_erosion(mask, iterations=SIGMA)
     bmp = potrace.Bitmap(mask)
     path_outline = bmp.trace(alphamax=0.0, turnpolicy=potrace.TURNPOLICY_BLACK, turdsize=args.min_surface)
 
@@ -269,7 +269,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--downscale", type=int, default=8)
     parser.add_argument("--mpp", type=float, default=1)  # before it was `0.88` but I don't know why
     parser.add_argument("-s", "--min-surface", type=int, default=10000)
-    parser.add_argument("-t", "--threshold", type=int, default=200)
+    parser.add_argument("-t", "--threshold", type=int, default=150)
     parser.add_argument("-v", "--viewbox", default="default")
     parser.add_argument("--stroke-width", type=int, default=100)
     parser.add_argument("--wm_lines", action="store_true")

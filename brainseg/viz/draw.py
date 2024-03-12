@@ -1,9 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.path import Path as GeomPath
+from scipy.ndimage import binary_dilation, binary_erosion
 from shapely.geometry import shape, Polygon, MultiPolygon
 import geopandas as gpd
 from rasterio import features
+from skimage.draw import polygon
 
 from brainseg.polygon import rescale_polygon, get_holes
 
@@ -171,3 +173,37 @@ def draw_polygons(arr, polygons, rescale=1., reverse=False, color_iteration=Fals
         value = i + 1 if color_iteration else 1
         arr = draw_polygon(arr, poly.simplify(tolerance=1 / rescale), rescale, reverse, value)
     return arr
+
+
+def draw_polygon_border(image, border_width=10, polygon_value=255, border_value=100):
+    # Create a structuring element for dilation
+    structuring_element = np.ones((border_width, border_width), dtype=np.uint8)
+
+    # Perform dilation on the polygons
+    dilated = binary_dilation(image == polygon_value, structure=structuring_element)
+    eroded = binary_erosion(image == polygon_value, structure=structuring_element)
+
+    # Create the border by subtracting the original image from the dilated image
+    # border = dilated & (image != polygon_value)
+    border = dilated & ~eroded
+
+    # Assign the border value to the border pixels
+    result = np.where(border, border_value, image)
+
+    return result
+
+
+def draw_in_mask(mask, poly, downscale, value=255):
+    """In-place"""
+    # print(poly)
+    # print(poly[0])
+    r, c = map(np.array, zip(*poly))
+    r, c = r / downscale, c / downscale
+    rr, cc = polygon(r, c)
+
+    # filter
+    valid_indices = (rr < mask.shape[0]) & (cc < mask.shape[1])
+    rr = rr[valid_indices]
+    cc = cc[valid_indices]
+
+    mask[rr, cc] = value

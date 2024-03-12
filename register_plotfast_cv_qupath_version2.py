@@ -11,19 +11,16 @@ To create the json equivalent :
 - Build the mapping if required => a starting point is in `prepro_svg.py`
 - Create the json with the mapped metadata
 """
-import tempfile
 from pathlib import Path
 import argparse
-import itk
 import numpy as np
-from scipy.ndimage import affine_transform, binary_erosion
 from geojson import load, FeatureCollection, dump, utils
-from scipy.ndimage import binary_dilation
-from skimage.draw import polygon
 import matplotlib
 from tqdm import tqdm
 
 from brainseg.geo import svg_to_geojson, simplify_line, simplify_all
+from brainseg.registration import get_affine_transform_matrix
+from brainseg.viz.draw import draw_polygon_border, draw_in_mask
 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -46,24 +43,6 @@ DICT_COLOR_TO_AREA = {
 }
 
 
-def draw_polygon_border(image, border_width=10, polygon_value=255, border_value=100):
-    # Create a structuring element for dilation
-    structuring_element = np.ones((border_width, border_width), dtype=np.uint8)
-
-    # Perform dilation on the polygons
-    dilated = binary_dilation(image == polygon_value, structure=structuring_element)
-    eroded = binary_erosion(image == polygon_value, structure=structuring_element)
-
-    # Create the border by subtracting the original image from the dilated image
-    # border = dilated & (image != polygon_value)
-    border = dilated & ~eroded
-
-    # Assign the border value to the border pixels
-    result = np.where(border, border_value, image)
-
-    return result
-
-
 def extract_outline_svg(svg):
     # we assume there is only one outline
     for x in svg.iterchildren():
@@ -79,94 +58,12 @@ def extract_outline_svg(svg):
     raise IndexError("No outline found in the svg !")
 
 
-def get_matrix_from_elastix(image_histo, image_mri):
-    fixed = itk.GetImageFromArray(image_histo.astype(np.float32), is_vector=False)
-    moving = itk.GetImageFromArray(image_mri.astype(np.float32), is_vector=False)
-
-    parameter_object = itk.ParameterObject.New()
-    parameter_map_affine = parameter_object.GetDefaultParameterMap('affine')
-
-    parameter_map_affine["Transform"] = ['EulerTransform']
-    parameter_map_affine["MaximumNumberOfIterations"] = ['1024']
-    parameter_map_affine["NumberOfResolutions"] = ['6.000000']  # could be 5
-    parameter_map_affine["Metric"] = ["AdvancedNormalizedCorrelation"]
-    parameter_map_affine["NumberOfSpatialSamples"] = ["50000"]
-
-    # parameter_map_affine["AutomaticTransformInitialization"] = ["true"]
-    # parameter_map_affine["AutomaticTransformInitializationMethod"] = ["CenterOfGravity"]
-
-    parameter_object.AddParameterMap(parameter_map_affine)
-
-    # Call registration function and specify output directory
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        result_image, result_transform_parameters = itk.elastix_registration_method(
-            fixed, moving,
-            parameter_object=parameter_object,
-            output_directory=str(tmp_dir))  # TODO replace with a tmp
-
-    return (
-        result_transform_parameters.GetParameter(0, "TransformParameters"),
-        result_transform_parameters.GetParameter(0, "CenterOfRotationPoint"),
-        np.array(result_image),
-    )
-
-
-def get_transform_matrix(fixed, moving):
-    """
-    Fixed and moving such that moving = fixed @ affine_matrix
-    In other words, the moving is the result of the transformation
-    of the fixed image with the returned matrix
-    """
-    assert isinstance(fixed, np.ndarray)
-    assert isinstance(moving, np.ndarray)
-    assert fixed.shape == moving.shape
-
-    sx, sy = fixed.shape
-    mat, center, res = get_matrix_from_elastix(moving, fixed)  # maybe the opposite
-    processed_mat = map(float, mat)
-    # s, theta, U, V = processed_mat
-    theta, U, V = processed_mat
-    cx, cy = map(float, center)
-
-    # u = V - (sy / 2 * b - sx / 2 * (1 - a))
-    # v = U - (sx / 2 * c - sy / 2 * (1 - d))
-
-    # print(f"\n ==== S = {s} ==== \n")
-
-    a, b, c, d = np.cos(theta), np.sin(theta), -np.sin(theta), np.cos(theta)
-    u = V - (cx * b - cy * (1 - a))
-    v = U - (cy * c - cx * (1 - d))
-
-    return np.array([[a, b, u], [c, d, v]]), res
-
-
-def get_transform_function(fixed, moving):
-    affine_matrix = get_transform_matrix(fixed, moving)
-    return lambda x: affine_transform(x, affine_matrix)
-
-
 def get_classification_name(obj):
     try:
         name = obj["properties"]["classification"]["name"]
     except (IndexError, KeyError):
         name = None
     return name
-
-
-def draw_in_mask(mask, poly, downscale, value=255):
-    """In-place"""
-    # print(poly)
-    # print(poly[0])
-    r, c = map(np.array, zip(*poly))
-    r, c = r / downscale, c / downscale
-    rr, cc = polygon(r, c)
-
-    # filter
-    valid_indices = (rr < mask.shape[0]) & (cc < mask.shape[1])
-    rr = rr[valid_indices]
-    cc = cc[valid_indices]
-
-    mask[rr, cc] = value
 
 
 def get_outline_mask(geo: FeatureCollection, key: str, shape, downscale):
@@ -277,7 +174,7 @@ def run(args, slice_id, plotfast_path, cv_path, output):
 
     mask_outline_fluo = draw_polygon_border(mask_outline_fluo, border_width=30, polygon_value=100, border_value=200)
     mask_outline_cv = draw_polygon_border(mask_outline_cv, border_width=30, polygon_value=100, border_value=200)
-    matrix, res = get_transform_matrix(mask_outline_cv, mask_outline_fluo)
+    matrix, res = get_affine_transform_matrix(mask_outline_cv, mask_outline_fluo)
     print("Matrix found", matrix)
 
     plt.subplot(1, 3, 1)
