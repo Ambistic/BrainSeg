@@ -151,7 +151,11 @@ def build_report_csv(args):
         ls.append(len(list(filter(lambda x: x, ls))))
         df[col_name] = ls
 
-    excluded = list(map(lambda x: int(x.strip()), read_txt(param.get("exclude_file"))))
+    try:
+        excluded = list(map(lambda x: int(x.strip()), read_txt(param.get("exclude_file"))))
+    except FileNotFoundError:
+        excluded = []
+
     ls_excluded = list(map(
             lambda x: "X" if x else "",
             [section_id in excluded for section_id in indexes[:-1]]
@@ -159,9 +163,13 @@ def build_report_csv(args):
     ls_excluded.append(len(list(filter(lambda x: x, ls_excluded))))
     df["excluded"] = ls_excluded
 
-    param_data = read_txt(param.get("manual_correction_file"))
-    dict_affine_params = parse_dict_param(",".join(param_data))
-    manually_corrected = list(set([x for x, _ in dict_affine_params.keys()]))
+    try:
+        param_data = read_txt(param.get("manual_correction_file"))
+        dict_affine_params = parse_dict_param(",".join(param_data))
+        manually_corrected = list(set([x for x, _ in dict_affine_params.keys()]))
+    except FileNotFoundError:
+        manually_corrected = []
+
     ls_corrected = list(map(
         lambda x: "X" if x else "",
         [section_id in manually_corrected for section_id in indexes[:-1]]

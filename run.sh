@@ -46,6 +46,8 @@ elif [ "$script_to_run" = "merge" ]; then
   poetry run python register_plotfast_cv_qupath_version2.py --config "$2"
 elif [ "$script_to_run" = "merge_fluo" ]; then
   poetry run python register_fluo_cv_qupath_version2.py --config "$2"
+elif [ "$script_to_run" = "extract_manual_parcellation" ]; then
+  poetry run python script_extract_manual_parcellations --config "$2"
 elif [ "$script_to_run" = "qc" ]; then
   poetry run python script_qc.py --config "$2"
 elif [ "$script_to_run" = "build_image_transform" ]; then
