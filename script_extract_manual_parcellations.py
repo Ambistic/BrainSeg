@@ -135,7 +135,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", type=Path, default=None)
-    parser.add_argument("--marker_type", type=str, default=None)
+    parser.add_argument("--marker_types", type=str, default=None)
     parser.add_argument("--annotations_dir", type=str, default=None)
     parser.add_argument("--manual_annotations_mask", type=str, default=None)
     parser.add_argument("--start", type=int, default=None)
