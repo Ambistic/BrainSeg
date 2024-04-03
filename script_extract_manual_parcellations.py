@@ -120,7 +120,7 @@ def run(geopath, metadata):
 
 def main(args):
     metadata_list = map(str.strip, args.marker_types.split(","))
-    metadata = {x: f"Cat {i}" for i, x in enumerate(metadata_list)}
+    metadata = {x: f"Cat {i + 1}" for i, x in enumerate(metadata_list)}
     print(f"Metadata : {metadata}")
 
     for slice_id in tqdm(range(args.start, args.end, args.step)):
