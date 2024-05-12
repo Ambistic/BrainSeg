@@ -27,6 +27,9 @@ from brainseg.viz.draw import draw_polygons_from_geopandas_corrected, draw_polyg
     draw_polygons_from_geopandas_3
 
 
+LOG_ITK_TO_CONSOLE = False
+
+
 def binarize_mask(mask):
     mask = mask > max(mask.max() / 2, 1 / 2)
     return mask.astype(int)
@@ -232,25 +235,29 @@ def compute_transform(image_histo, image_mri, output_directory, hemisphere, sect
 
     # Call registration function and specify output directory
     print(point_set_args)
+    result_images = dict()
     result_image, result_transform_parameters = itk.elastix_registration_method(
         fixed, moving,
         parameter_object=parameter_object,
         output_directory=str(output_directory),
-        log_to_console=True,
+        log_to_console=LOG_ITK_TO_CONSOLE,
         **point_set_args,
         # number_of_threads=16,
     )
+    result_images["both"] = result_image
 
     if hemisphere == "right" or hemisphere == "both":
-        compute_side_transform(image_mri, image_histo, parameter_map_affine, parameter_map_bspline,
-                               result_transform_parameters, output_directory, side="right",
-                               point_set_args=point_set_args)
+        image_right, _ = compute_side_transform(image_mri, image_histo, parameter_map_affine, parameter_map_bspline,
+                                                result_transform_parameters, output_directory, side="right",
+                                                point_set_args=point_set_args)
+        result_images["right"] = image_right
     if hemisphere == "left" or hemisphere == "both":
-        compute_side_transform(image_mri, image_histo, parameter_map_affine, parameter_map_bspline,
-                               result_transform_parameters, output_directory, side="left",
-                               point_set_args=point_set_args)
+        image_left, _ = compute_side_transform(image_mri, image_histo, parameter_map_affine, parameter_map_bspline,
+                                               result_transform_parameters, output_directory, side="left",
+                                               point_set_args=point_set_args)
+        result_images["left"] = image_left
 
-    return result_image, result_transform_parameters
+    return result_images, result_transform_parameters
 
 
 def compute_side_transform(image_mri, image_histo, parameter_map_affine, parameter_map_bspline,
@@ -295,10 +302,12 @@ def compute_side_transform(image_mri, image_histo, parameter_map_affine, paramet
         fixed_side, moving_side,
         parameter_object=parameter_object,
         output_directory=os.path.join(str(output_directory), side),
+        log_to_console=LOG_ITK_TO_CONSOLE,
         **point_set_args
     )
 
     format_to_grey_image(result_image_side).save(output_directory / side / "image.png")
+    return result_image_side, result_transform_parameters_side
 
 
 def compute_inverse_transform(image_histo, input_directory, output_directory, hemisphere):
@@ -325,13 +334,17 @@ def compute_inverse_transform(image_histo, input_directory, output_directory, he
     pattern = r'\(InitialTransformParametersFileName ".*"\)'
     replace = r'(InitialTransformParametersFileName "NoInitialTransform")'
 
+    result_images = dict()
+
     inverse_image, inverse_transform_parameters = itk.elastix_registration_method(
         fixed, fixed,
         parameter_object=parameter_object,
         initial_transform_parameter_file_name=str(input_directory / 'TransformParameters.1.txt'),
         output_directory=str(output_directory),
+        log_to_console=LOG_ITK_TO_CONSOLE,
     )
     replace_lines_in_file(str(output_directory / 'TransformParameters.0.txt'), pattern, replace)
+    result_images["both"] = inverse_image
 
     if hemisphere == "right" or hemisphere == "both":
         inverse_image_right, inverse_transform_parameters_right = itk.elastix_registration_method(
@@ -339,8 +352,10 @@ def compute_inverse_transform(image_histo, input_directory, output_directory, he
             parameter_object=parameter_object,
             initial_transform_parameter_file_name=str(input_directory / "right" / 'TransformParameters.1.txt'),
             output_directory=str(output_directory / "right"),
+            log_to_console=LOG_ITK_TO_CONSOLE,
         )
         replace_lines_in_file(str(output_directory / "right" / 'TransformParameters.0.txt'), pattern, replace)
+        result_images["right"] = inverse_image_right
 
     if hemisphere == "left" or hemisphere == "both":
         inverse_image_left, inverse_transform_parameters_left = itk.elastix_registration_method(
@@ -348,10 +363,12 @@ def compute_inverse_transform(image_histo, input_directory, output_directory, he
             parameter_object=parameter_object,
             initial_transform_parameter_file_name=str(input_directory / "left" / 'TransformParameters.1.txt'),
             output_directory=str(output_directory / "left"),
+            log_to_console=LOG_ITK_TO_CONSOLE,
         )
         replace_lines_in_file(str(output_directory / "left" / 'TransformParameters.0.txt'), pattern, replace)
+        result_images["left"] = inverse_image_left
 
-    # Adjust inverse transform parameters object
+        # Adjust inverse transform parameters object
     inverse_transform_parameters.SetParameter(
         0, "InitialTransformParametersFileName", "NoInitialTransform")
 
@@ -431,7 +448,7 @@ def create_transforms(
     (output_folder_backward / "left").mkdir(parents=True, exist_ok=True)
 
     # create transform
-    image_forward, _ = compute_transform(image_histo, image_mri, output_folder_forward, hemisphere, section_id,
+    images_forward, _ = compute_transform(image_histo, image_mri, output_folder_forward, hemisphere, section_id,
                                          Path(output_dir) / "manual_assistance")
     image_backward, _ = compute_inverse_transform(image_histo, output_folder_forward, output_folder_backward,
                                                   hemisphere)
@@ -439,11 +456,25 @@ def create_transforms(
     # export quality controls
     format_to_grey_image(image_histo).save(output_folder_forward / "image_histo.png")
     format_to_grey_image(image_mri).save(output_folder_forward / "image_mri.png")
-    format_to_grey_image(image_forward).save(output_folder_forward / "image_forward.png")
+    format_to_grey_image(images_forward["both"]).save(output_folder_forward / "image_forward.png")
     format_to_grey_image(image_backward).save(output_folder_forward / "image_backward.png")
 
+    mri_raw = io.imread(build_path_mri(dir_mri, section_id, "raw"))
     output_all = Path(output_dir) / "review"
     output_all.mkdir(parents=True, exist_ok=True)
+
+    export_review_images(images_forward["both"], image_histo, image_mri, mri_raw, output_all, section_id, "both")
+    if "right" in images_forward:
+        export_review_images(images_forward["right"], image_histo, image_mri, mri_raw, output_all, section_id, "right")
+    if "left" in images_forward:
+        export_review_images(images_forward["left"], image_histo, image_mri, mri_raw, output_all, section_id, "left")
+
+    write_txt(output_folder_forward / "hash.txt", hash_param)
+
+    return True
+
+
+def export_review_images(image_forward, image_histo, image_mri, mri_raw, output_all, section_id, name="both"):
     plt.figure(figsize=(12, 12))
     plt.subplot(2, 2, 1)
     plt.imshow(image_histo)
@@ -452,13 +483,8 @@ def create_transforms(
     plt.subplot(2, 2, 3)
     plt.imshow(image_forward)
     plt.subplot(2, 2, 4)
-    mri_raw = io.imread(build_path_mri(dir_mri, section_id, "raw"))
     plt.imshow(mri_raw)
-    plt.savefig(str(output_all / f"{section_id}.png"))
-
-    write_txt(output_folder_forward / "hash.txt", hash_param)
-
-    return True
+    plt.savefig(str(output_all / f"{section_id}_{name}.png"))
 
 
 def create_transform_from_dirs(args, dir_histo, dir_mri, dir_histo_annotation,
@@ -469,7 +495,6 @@ def create_transform_from_dirs(args, dir_histo, dir_mri, dir_histo_annotation,
     hash_param = hash_file(args.manual_correction_file)
     dict_affine_params = parse_dict_param(",".join(param_data))
     for section_id in tqdm(range(start, end, step)):
-    # for section_id in tqdm([149, 111, 105, 101, 77, 73, 71, 69]):
         processing_type = get_processing_type(args.schedule_steps, args.schedule_transform_type, section_id)
 
         is_made = create_transforms(

@@ -7,7 +7,7 @@ import numpy as np
 from geojson import loads, dumps, Point as GeoPoint, Feature, Polygon as GeoPolygon, FeatureCollection, \
     LineString as GeoLineString
 from shapely import geometry
-from shapely.geometry import shape
+from shapely.geometry import shape, Point, LineString
 from shapely.ops import transform
 from shapely.geometry import Point, LineString, Polygon
 import geopandas as gpd
@@ -17,6 +17,7 @@ from shapely.validation import make_valid
 
 from brainseg.svg.utils import is_point, is_polygon, points_to_numpy, css_to_dict, is_comment
 from prepro_svg import is_line
+from brainseg.math import distance
 
 
 def quickfix_multipolygon(geo):
@@ -531,3 +532,111 @@ def get_point_name_from_comment(comment):
         s = match.group(1)
         return s
     return None
+
+
+def create_qupath_point(x, y, point_name="none"):
+    point = GeoPoint((float(x), float(y)))
+    properties = {"classification": {"name": point_name}}
+    feat = Feature(geometry=point, properties=properties)
+
+    return feat
+
+
+# QuPath v0.5 proofed
+def create_qupath_line(coords, line_name="none"):
+    polygon = GeoLineString(coords.tolist())
+    properties = {"objectType": "annotation", "name": line_name}
+    # properties = {"classification": {"name": line_name}}
+    feat = Feature(geometry=polygon, properties=properties)
+
+    return feat
+
+
+def create_qupath_polygon(coords, line_name="none"):
+    """Provide a 2-D array, a list of lists or a list of arrays"""
+    coords = np.array(coords)
+    polygon = GeoPolygon([coords.tolist()])
+    properties = {"objectType": "annotation", "name": line_name}
+    # properties = {"classification": {"name": line_name}}
+    feat = Feature(geometry=polygon, properties=properties)
+
+    return feat
+
+
+def find_feature_by_name(feats, name):
+    for feat in feats:
+        if feat["properties"]["name"] == name:
+            return feat
+    return None
+
+
+def get_closest_point_id(coords, polygon_coords):
+    coords = np.array(coords)
+    polygon_coords = np.array(polygon_coords)
+    distances = distance(coords, polygon_coords)
+
+    wheremin = np.where(distances == np.min(distances))[0][0]
+    return wheremin
+
+
+def get_closest_point_id_from_list(coords, polygon_coords_list):
+    listmin, wheremin, value_min = None, None, 1e50
+    for i, poly in enumerate(polygon_coords_list):
+        current_wheremin = get_closest_point_id(coords, poly)
+        current_value = distance(coords, poly[current_wheremin])
+        if current_value < value_min:
+            value_min = current_value
+            wheremin = current_wheremin
+            listmin = i
+
+    return listmin, wheremin
+
+
+def get_furthest_point_id(coords, polygon_coords):
+    """Note that `polygon_coords` can be just a list of points"""
+    coords = np.array(coords)
+    polygon_coords = np.array(polygon_coords)
+    distances = distance(coords, polygon_coords)
+
+    wheremax = np.where(distances == np.max(distances))[0][0]
+    return wheremax
+
+
+def find_segment_intersected(polygon, point: Point, threshold=1e-3):
+    # Find the segments that form the intersecting segment
+    segments_line = [(polygon.coords[i], polygon.coords[i + 1]) for i in range(len(polygon.coords) - 1)]
+
+    # Check which segment contains the intersection point
+    intersecting_segment_line = None
+
+    for segment in segments_line:
+        segment_line = LineString(segment)
+
+        if segment_line.distance(point) < threshold:
+            intersecting_segment_line = segment
+            break
+
+    return intersecting_segment_line
+
+
+def find_close_head(tail, heads, threshold=200):
+    for i, h in enumerate(heads):
+        if distance(tail, h) < threshold:
+            return i
+    return None
+
+
+def valid_tail_point(head, tail, point):
+    coords = point.coords[0]
+    if distance(head, coords) > distance(tail, coords) * 2:
+        return True
+    return False
+
+
+def valid_tail_points(head, tail, points):
+    valid_points = []
+    for p in points:
+        if valid_tail_point(head, tail, p):
+            valid_points.append(p)
+
+    return valid_points

@@ -80,11 +80,14 @@ DICT_AREA_COLOR = dict(
 )
 
 
-def to_color(areas):
+def to_color(areas, dict_area_color=None):
+    if dict_area_color is None:
+        dict_area_color = DICT_AREA_COLOR
+
     if isinstance(areas, str):
         areas = [areas]
 
-    return [DICT_AREA_COLOR[area] for area in areas]
+    return [dict_area_color[area] for area in areas]
 
 
 def get_slide_size(slide):
@@ -274,3 +277,35 @@ def hash_file(file_path):
     hash_value = hash_object.hexdigest()
 
     return hash_value
+
+
+def filter_index_not_in_list(current_list, discard_list):
+    return [x for i, x in enumerate(current_list) if i not in discard_list]
+
+
+def find_lowest_value_above_threshold(lst, threshold):
+    # Initialize a variable to store the lowest value found
+    lowest_value = None
+
+    # Iterate through the list
+    for value in lst:
+        # Check if the current value is higher than the threshold
+        if value > threshold:
+            # If the lowest_value is None or the current value is lower than the lowest_value,
+            # update the lowest_value to the current value
+            if lowest_value is None or value < lowest_value:
+                lowest_value = value
+
+    # Return the lowest value found
+    return lowest_value
+
+
+def has_larger_range(x, y):
+    return min(x) < min(y) and max(x) > max(y)
+
+
+def get_rolling_slice(ls, start, end):
+    if end >= start:
+        return ls[start:end]
+    else:
+        return ls[start:] + ls[:end]

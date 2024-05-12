@@ -24,6 +24,15 @@ def build_path_histo(rootdir, section_id, filename_mask):
     return os.path.join(rootdir, filename_mask % section_id)
 
 
+def build_path_from_mask(rootdir, section_id, filename_mask, zfill=False):
+    assert "%s" in filename_mask
+    section_id = str(section_id)
+    if zfill:
+        section_id = section_id.zfill(3)
+
+    return os.path.join(rootdir, filename_mask % section_id)
+
+
 def build_path_histo_segmentation(rootdir, section_id, filename_mask, type_segmentation, format_segmentation):
     assert "%s" in filename_mask
     section_id = str(section_id).zfill(3)

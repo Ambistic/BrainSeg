@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def parse_nomenclature(code):
     parts = code.strip().split('_')
 
@@ -28,3 +31,16 @@ def parse_dict_param(string):
         d[(slice_number, piece_number)] = (flip, rotation_angle, shift_x, shift_y)
 
     return d
+
+
+def get_arrows_from_root(root):
+    return list(root.find("Elements").findall("Arrow"))
+
+
+def get_arrow_coords(arrow):
+    x1 = float(arrow.find("Geometry").find("X1").text)
+    x2 = float(arrow.find("Geometry").find("X2").text)
+    y1 = float(arrow.find("Geometry").find("Y1").text)
+    y2 = float(arrow.find("Geometry").find("Y2").text)
+
+    return np.array([[x1, y1], [x2, y2]])
