@@ -114,6 +114,8 @@ def run(geopath, metadata):
 
     df_formatted.rename(index=dict(Contour="Total"), inplace=True)
     df_formatted.loc["Contour"] = 0
+    if "Total" not in df_formatted.index:
+        df_formatted.loc["Total"] = 0
 
     df_formatted.to_excel(geopath + ".xlsx", index_label="Region")
 
