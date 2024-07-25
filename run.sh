@@ -43,7 +43,7 @@ elif [ "$script_to_run" = "make_transform" ]; then
 elif [ "$script_to_run" = "select_angle" ]; then
   poetry run python script_angle_selection.py --config "$2"
 elif [ "$script_to_run" = "merge" ]; then
-  poetry run python register_plotfast_cv_qupath_version2.py --config "$2"
+  poetry run python register_plotfast_cv_qupath_v3.py --config "$2"
 elif [ "$script_to_run" = "merge_fluo" ]; then
   poetry run python register_fluo_cv_qupath_version2.py --config "$2"
 elif [ "$script_to_run" = "extract_manual_parcellation" ]; then

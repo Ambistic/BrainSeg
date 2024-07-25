@@ -14,8 +14,9 @@ To create the json equivalent :
 from pathlib import Path
 import argparse
 import numpy as np
-from geojson import load, FeatureCollection, utils
+from geojson import load, FeatureCollection, dump, utils
 import matplotlib
+from skimage.registration import phase_cross_correlation
 from tqdm import tqdm
 
 from brainseg.geo import svg_to_geojson, simplify_line, simplify_all, transform_geojson, save_geojson
@@ -141,8 +142,26 @@ def run(args, slice_id, plotfast_path, cv_path, output):
         [0, 1, size[1] / 2]
     ])
     mat *= 1 / args.mpp_plotfast
-    geo_fluo = transform_geojson(geo_fluo, mat)
+    geo_fluo_tmp = transform_geojson(geo_fluo, mat)
     print("Computing fluo mask")
+    mask_outline_fluo_tmp, _ = get_outline_mask(geo_fluo_tmp, args.fluo_outline_name, shape, args.downscale)
+
+    # calculate phase correlation
+    # is is cv, fluo or fluo, cv ?
+    # do we need to inverse x, y afterwards ?
+    shift, _, _ = phase_cross_correlation(mask_outline_cv, mask_outline_fluo_tmp)
+
+    # perform shift on geo_fluo transform
+    mat = np.array([
+        [1, 0, size[0] / 2 + shift[0] * args.downscale],  # here we can integrate a shift if it's not working properly
+        [0, 1, size[1] / 2 + shift[1] * args.downscale]
+    ])
+    mat *= 1 / args.mpp_plotfast
+    print(mat, size, shift)
+    # return geo_fluo
+    geo_fluo = transform_geojson(geo_fluo, mat)
+
+    # recalculate the mask fluo
     mask_outline_fluo, _ = get_outline_mask(geo_fluo, args.fluo_outline_name, shape, args.downscale)
 
     print("Compute transform function")

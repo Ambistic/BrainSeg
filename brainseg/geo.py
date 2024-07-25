@@ -5,7 +5,7 @@ from typing import Sequence
 import geojson
 import numpy as np
 from geojson import loads, dumps, Point as GeoPoint, Feature, Polygon as GeoPolygon, FeatureCollection, \
-    LineString as GeoLineString
+    LineString as GeoLineString, utils, dump
 from shapely import geometry
 from shapely.geometry import shape, Point, LineString
 from shapely.ops import transform
@@ -23,6 +23,9 @@ from brainseg.math import distance
 def quickfix_multipolygon(geo):
     geo = geo.copy()
     for feat in geo["features"]:
+        if feat is None:
+            continue
+
         if feat["geometry"]["type"] == "MultiPolygon" \
                 and len(feat["geometry"]["coordinates"]) == 1:
             feat["geometry"]["coordinates"].append([])
@@ -34,6 +37,9 @@ def quickfix_multipolygon_shapely(geo):
     geo = geo.copy()
     features = []
     for feat in geo["features"]:
+        if feat is None:
+            continue
+
         if feat["geometry"]["type"] == "MultiPolygon":
             coords = []
             for coord in feat["geometry"]["coordinates"]:
@@ -291,7 +297,15 @@ def transform_forward_histo(geo, args):
 
 
 def extract_shape(histo_geojson, name):
-    return histo_geojson[histo_geojson["name"] == name].iloc[0]
+    if type(name) is list:
+        res = histo_geojson[histo_geojson["name"].isin(name)]
+    else:
+        res =  histo_geojson[histo_geojson["name"] == name]
+
+    if len(res) > 0:
+        return res.iloc[0]
+    else:
+        raise ValueError(f"No {name} found in the geojson file")
 
 
 def polygons_to_geopandas(polygons_list):
@@ -412,6 +426,48 @@ def explode_multipolygon_geojson(geo):
     # Create a new GeoJSON object with the converted features
     converted_geojson = {"type": "FeatureCollection", "features": flattened_features}
     return converted_geojson
+
+
+def geojson_to_svg(svg, mapping_stroke_classification):
+    """
+    For plotfast
+    :param svg:
+    :param mapping_stroke_classification:
+    :return:
+    """
+    features = []
+    last_comment = None
+    for x in svg.iterchildren():
+        if is_point(x):
+            point_name = get_point_name_from_comment(str(last_comment))
+            if "x" in x.attrib:
+                kx, ky = "x", "y"
+            else:
+                kx, ky = "cx", "cy"
+            point = GeoPoint((float(x.attrib[kx]), float(x.attrib[ky])))
+            properties = {"classification": {"name": point_name}}
+            feat = Feature(geometry=point, properties=properties)
+            features.append(feat)
+
+        if is_polygon(x):
+            # process color
+            # add a polygon
+            coords = points_to_numpy(x.attrib["points"])
+            polygon = GeoPolygon([coords.tolist()])
+            style = css_to_dict(x.attrib["style"])
+            category = mapping_stroke_classification.get(style["stroke"], "none")
+            if category == "none":
+                print(style["stroke"])
+            properties = {"classification": {"name": category}}
+            feat = Feature(geometry=polygon, properties=properties)
+            features.append(feat)
+
+        if is_comment(x):
+            last_comment = x
+        else:
+            last_comment = None
+
+    return FeatureCollection(features)
 
 
 def svg_to_geojson(svg, mapping_stroke_classification):
@@ -542,8 +598,17 @@ def create_qupath_point(x, y, point_name="none"):
     return feat
 
 
+def create_qupath_single_point(x, y, point_name="none"):
+    point = GeoPoint((float(x), float(y)))
+    properties = {"objectType": "annotation", "name": point_name}
+    feat = Feature(geometry=point, properties=properties)
+
+    return feat
+
+
 # QuPath v0.5 proofed
-def create_qupath_line(coords, line_name="none"):
+def create_qupath_line(coords, line_name="none") -> Feature:
+    coords = np.array(coords)
     polygon = GeoLineString(coords.tolist())
     properties = {"objectType": "annotation", "name": line_name}
     # properties = {"classification": {"name": line_name}}
@@ -628,7 +693,7 @@ def find_close_head(tail, heads, threshold=200):
 
 def valid_tail_point(head, tail, point):
     coords = point.coords[0]
-    if distance(head, coords) > distance(tail, coords) * 2:
+    if distance(head, coords) > distance(tail, coords) * 1.2:
         return True
     return False
 
@@ -640,3 +705,56 @@ def valid_tail_points(head, tail, points):
             valid_points.append(p)
 
     return valid_points
+
+
+def interpolate_line(line, max_length=100):
+    # This function interpolates points on a LineString
+    points = list(line.coords)
+    new_points = [points[0]]
+    for start, end in zip(points[:-1], points[1:]):
+        segment_length = math.dist(start, end)
+        if segment_length > max_length:
+            num_segments = math.ceil(segment_length / max_length)
+            for i in range(1, num_segments):
+                new_points.append((
+                    start[0] + (end[0] - start[0]) * i / num_segments,
+                    start[1] + (end[1] - start[1]) * i / num_segments
+                ))
+        new_points.append(end)
+    return new_points
+
+
+def interpolate_polygon(polygon, max_length=100):
+    exterior_coords = interpolate_line(LineString(polygon.exterior.coords), max_length)
+    new_interiors = []
+    for interior in polygon.interiors:
+        interior_coords = interpolate_line(LineString(interior.coords), max_length)
+        new_interiors.append(interior_coords)
+
+    new_polygon = Polygon(exterior_coords, new_interiors)
+    return new_polygon
+
+
+def transform_geojson(json_obj, transform_matrix):
+    json_obj = copy.deepcopy(json_obj)
+
+    def wrapped_transform(x):
+        # why the "-" ? I don't know, but it works like this
+        x = np.array(x + [1])  # because it must be 1 at the moment of the transform
+        y_ = x @ transform_matrix.T
+        return list(y_)
+
+    ls = []
+
+    for feat in json_obj["features"]:
+        obj = utils.map_tuples(wrapped_transform, feat)
+        ls.append(obj)
+
+    json_obj["features"] = ls
+
+    return json_obj
+
+
+def save_geojson(args, geo, output):
+    with open(output, "w") as f:
+        dump(geo, f)
