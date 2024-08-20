@@ -142,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--mid_surface", type=str, default=None)
     parser.add_argument("--external_surface", type=str, default=None)
     parser.add_argument("--wb_binary", type=str, default=None)
+
     args_ = fill_with_config(parser)
     args_.cell_types = list(map(str.strip, args_.cell_types.split(",")))
 
