@@ -148,7 +148,8 @@ if __name__ == "__main__":
 
     args_ = fill_with_config(parser)
     args_.cell_types = list(map(str.strip, args_.cell_types.split(",")))
-    args_.mri_center_coordinates = np.array(list(map(str.strip, args_.mri_center_coordinates.split(","))))
+    args_.mri_center_coordinates = np.array(list(map(
+        lambda x: float(x.strip()), args_.mri_center_coordinates.split(","))))
     assert len(args_.mri_center_coordinates) == 3, f"mri_center_coordinates should have 3 " \
                                                    f"coordinates : {args_.mri_center_coordinates}"
 
