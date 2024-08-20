@@ -25,7 +25,7 @@ def build_interpolation(args, slices_indices, list_arrays):
 
 
 def coordinates_to_index(point, mri_res=0.5, index_zero=np.array([96, 128, 96])):
-    return point / mri_res + index_zero
+    return (point * np.array([-1, 1, 1])) / mri_res + index_zero
 
 
 def extract_points(args, slice_id):
@@ -144,7 +144,6 @@ if __name__ == "__main__":
     parser.add_argument("--internal_surface", type=str, default=None)
     parser.add_argument("--mid_surface", type=str, default=None)
     parser.add_argument("--external_surface", type=str, default=None)
-    parser.add_argument("--wb_binary", type=str, default=None)
 
     args_ = fill_with_config(parser)
     args_.cell_types = list(map(str.strip, args_.cell_types.split(",")))
