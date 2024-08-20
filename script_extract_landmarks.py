@@ -43,11 +43,13 @@ def extract_points(args, slice_id):
         if isinstance(geometry, MultiPoint):
             for p in geometry.geoms:
                 point = pixel_slice_to_mri_3d(p.x, p.y, mri_index, (args.angle_x, 0, args.angle_z))
-                array_point.append(coordinates_to_index(point, mri_res=args.mri_voxel_size_mm))
+                array_point.append(coordinates_to_index(point, mri_res=args.mri_voxel_size_mm,
+                                                        index_zero=args.mri_center_coordinates))
                 array_name.append(name)
         elif isinstance(geometry, Point):
             point = pixel_slice_to_mri_3d(geometry.x, geometry.y, mri_index, (args.angle_x, 0, args.angle_z))
-            array_point.append(coordinates_to_index(point, mri_res=args.mri_voxel_size_mm))
+            array_point.append(coordinates_to_index(point, mri_res=args.mri_voxel_size_mm,
+                                                    index_zero=args.mri_center_coordinates))
             array_name.append(name)
         else:
             continue
@@ -129,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument("--nifti_reference", type=str, default=None)
     parser.add_argument("--mri_projections_dir", type=Path, default=None)
     parser.add_argument("--mri_voxel_size_mm", type=float, default=None)
+    parser.add_argument("--mri_center_coordinates", type=str, default=None)
     parser.add_argument("--cell_types", type=str, default=None)
     parser.add_argument("--exclude_file", type=str, default=None)
     parser.add_argument("--start", type=int, default=None)
@@ -145,5 +148,8 @@ if __name__ == "__main__":
 
     args_ = fill_with_config(parser)
     args_.cell_types = list(map(str.strip, args_.cell_types.split(",")))
+    args_.mri_center_coordinates = np.array(list(map(str.strip, args_.mri_center_coordinates.split(","))))
+    assert len(args_.mri_center_coordinates) == 3, f"mri_center_coordinates should have 3 " \
+                                                   f"coordinates : {args_.mri_center_coordinates}"
 
     main(args_)
