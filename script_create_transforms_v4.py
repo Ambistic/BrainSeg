@@ -29,6 +29,56 @@ from brainseg.viz.draw import draw_polygons_from_geopandas_3
 LOG_ITK_TO_CONSOLE = False
 
 
+def process_histo_binary(histo):
+    image_histo = histo[3] * 100 + histo[4] * 100
+    return image_histo
+
+
+def process_histo_original(histo):
+    image_histo = histo[1].max() - histo[1] + histo[3] * 100 + histo[4] * 100
+    return image_histo
+
+
+def process_histo_contrasted(histo):
+    image_histo = (histo[0] * 0.4 + histo[1] * 0.4 + histo[2] * 0.2) * 1 + histo[3] * 180 - histo[4] * 50 - 250
+    image_histo = np.clip(image_histo, 0, 255)
+    return image_histo
+
+
+def process_histo_raw(histo):
+    image_histo = histo[0] * 0.4 + histo[1] * 0.4 + histo[2] * 0.2
+    return image_histo
+
+
+def process_mri_binary(mri):
+    image_mri = mri[4] * 100
+    return image_mri
+
+
+def process_mri_original(mri):
+    image_mri = mri[1] + mri[4] * 100
+    return image_mri
+
+
+def process_mri_contrasted(mri):
+    image_mri = mri[1] - mri[4] * 20
+    image_mri = np.clip(image_mri, 0, 255)
+    return image_mri
+
+
+def process_mri_raw(mri):
+    image_mri = mri[1]
+    return image_mri
+
+
+MAP_IMAGE_TYPE = dict(
+    binary=(process_histo_binary, process_mri_binary),
+    original=(process_histo_original, process_mri_original),
+    contrasted=(process_histo_contrasted, process_mri_contrasted),
+    raw=(process_histo_raw, process_mri_raw),
+)
+
+
 def binarize_mask(mask):
     mask = mask > max(mask.max() / 2, 1 / 2)
     return mask.astype(int)
@@ -75,7 +125,7 @@ def format_mri(mri_raw, mri_pial, mri_gm, mri_wm,):
     return mri_concat
 
 
-def build_image_histo(histo_root, histo_annotation_root, section_id,
+def build_image_histo(args, histo_root, histo_annotation_root, section_id,
                       filename_mask_raw, filename_mask_annotation,
                       dict_affine_params=None,
                       predownscale_histo=0.1, redownscale_histo=0.25):
@@ -108,20 +158,17 @@ def build_image_histo(histo_root, histo_annotation_root, section_id,
                                         swap_xy=True, background=0, scale=predownscale_histo * redownscale_histo)
 
     histo_concat = format_histo(histo_mod, histo_pial, histo_gm)
-    image_histo = histo_concat[1].max() - histo_concat[1] + histo_concat[3] * 100 + histo_concat[4] * 100
-    return image_histo
+    return MAP_IMAGE_TYPE[args.format_registration_type][0](histo_concat)
 
 
-def build_image_mri(mri_root, section_id):
+def build_image_mri(args, mri_root, section_id):
     mri_gm = io.imread(build_path_mri(mri_root, section_id, "gm"))
     mri_pial = io.imread(build_path_mri(mri_root, section_id, "pial"))
     mri_wm = io.imread(build_path_mri(mri_root, section_id, "wm"))
     mri_raw = io.imread(build_path_mri(mri_root, section_id, "raw"))
 
     mri_concat = format_mri(mri_raw, mri_pial, mri_gm, mri_wm)
-    image_mri = mri_concat[1] + mri_concat[4] * 100
-
-    return image_mri
+    return MAP_IMAGE_TYPE[args.format_registration_type][1](mri_concat)
 
 
 def write_point_txt(point_file, points):
@@ -408,23 +455,27 @@ def format_to_grey_image(image_array):
 
 
 def create_transforms(
-        dir_histo, dir_mri, dir_histo_annotation,
+        args, dir_histo, dir_mri, dir_histo_annotation,
         filename_mask_raw, filename_mask_annotation, section_id,
         output_dir, hemisphere, dict_affine_params, hash_param
 ):
     try:
         image_histo = build_image_histo(
-            dir_histo, dir_histo_annotation, section_id,
+            args, dir_histo, dir_histo_annotation, section_id,
             filename_mask_raw, filename_mask_annotation,
             dict_affine_params=dict_affine_params
         )
 
         image_mri = build_image_mri(
-            dir_mri, section_id
+            args, dir_mri, section_id
         )
 
         if image_histo.std() == 0 or image_mri.std() == 0:
-            raise RuntimeError("An image has constant value, this can't be registered !")
+            raise RuntimeError(f"An image ({section_id}) has constant value, this can't be registered !")
+
+        # check if not too few pixels are not background
+        if (image_mri == image_mri.min()).mean() < 0.001:
+            raise RuntimeError(f"An image ({section_id}) has almost constant value, this can't be registered !")
 
     except Exception as e:
         # raise
@@ -447,6 +498,14 @@ def create_transforms(
 
     (output_folder_forward / "left").mkdir(parents=True, exist_ok=True)
     (output_folder_backward / "left").mkdir(parents=True, exist_ok=True)
+
+    if False:
+        mri_raw = io.imread(build_path_mri(dir_mri, section_id, "raw"))
+        output_all = Path(output_dir) / "review"
+        output_all.mkdir(parents=True, exist_ok=True)
+
+        export_review_images(image_histo, image_histo, image_mri, mri_raw, output_all, section_id, "both")
+        return
 
     # create transform
     images_forward, _ = compute_transform(image_histo, image_mri, output_folder_forward, hemisphere, section_id,
@@ -479,10 +538,16 @@ def export_review_images(image_forward, image_histo, image_mri, mri_raw, output_
     plt.figure(figsize=(12, 12))
     plt.subplot(2, 2, 1)
     plt.imshow(image_histo)
+    plt.title(f"{np.asarray(image_histo).min()}:{np.asarray(image_histo).max()}")
+    plt.colorbar()
     plt.subplot(2, 2, 2)
     plt.imshow(image_mri)
+    plt.title(f"{np.asarray(image_mri).min()}:{np.asarray(image_mri).max()}")
+    plt.colorbar()
     plt.subplot(2, 2, 3)
     plt.imshow(image_forward)
+    plt.title(f"{np.asarray(image_forward).min()}:{np.asarray(image_forward).max()}")
+    plt.colorbar()
     plt.subplot(2, 2, 4)
     plt.imshow(mri_raw)
     plt.savefig(str(output_all / f"{section_id}_{name}.png"))
@@ -499,7 +564,7 @@ def create_transform_from_dirs(args, dir_histo, dir_mri, dir_histo_annotation,
         processing_type = get_processing_type(args.schedule_steps, args.schedule_transform_type, section_id)
 
         is_made = create_transforms(
-            dir_histo, dir_mri, dir_histo_annotation,
+            args, dir_histo, dir_mri, dir_histo_annotation,
             filename_mask_raw, filename_mask_annotation, section_id,
             output_dir, processing_type, dict_affine_params, hash_param
         )
@@ -532,6 +597,7 @@ if __name__ == "__main__":
     parser.add_argument("--schedule_steps", type=str, default=None)
     parser.add_argument("--schedule_transform_type", type=str, default=None)
     parser.add_argument("--hemisphere", type=str, default=None)
+    parser.add_argument("--format_registration_type", type=str, default=None)
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--step", type=int, default=None)

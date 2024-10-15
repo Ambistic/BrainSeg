@@ -1,4 +1,5 @@
 import argparse
+import traceback
 import warnings
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from brainseg.misc.points import transfer_points
 from brainseg.parser import parse_dict_param
 from brainseg.path import build_path_histo, build_path_mri
 from brainseg.utils import read_histo, write_histo, get_processing_type, read_txt, hash_file, \
-    extract_classification_name
+    extract_classification_name, calculate_name
 from brainseg.viz.draw import draw_geojson_on_image
 
 
@@ -58,7 +59,8 @@ def run_slice(args, slice_id, dict_affine_params):
     histo = read_histo(histo_file)  # geojson handled for now
     histo = quickfix_multipolygon_shapely(histo)
     histo_geojson = gpd.read_file(histo_file)
-    histo_geojson["name"] = histo_geojson["classification"].apply(extract_classification_name)
+    calculate_name(histo_geojson)
+    # histo_geojson["name"] = histo_geojson["classification"].apply(extract_classification_name)
     # here compute manual correction
     ordered_pial, _, params, _, _, _ = process_pial_gm_manual_correction(
         dict_affine_params, histo_geojson, slice_id)
@@ -97,7 +99,7 @@ def main(args):
             print(str(e))
         except Exception as e:
             print("=" * 40)
-            print("Unexpected error")
+            traceback.print_exc()
             print(str(e))
         else:
             pass
@@ -120,5 +122,8 @@ if __name__ == "__main__":
     parser.add_argument("--schedule_steps", type=str, default=None)
     parser.add_argument("--schedule_transfer_type", type=str, default=None)
     args_ = fill_with_config(parser)
+
+    if not args_.mri_projections_dir.exists():
+        args_.mri_projections_dir.mkdir(parents=True, exist_ok=True)
 
     main(args_)

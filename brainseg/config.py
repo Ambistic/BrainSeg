@@ -1,5 +1,6 @@
 import configparser
 import argparse
+from pathlib import Path
 
 
 def fill_with_config(parser):
@@ -8,6 +9,14 @@ def fill_with_config(parser):
 
     if args_.config is not None:
         config = configparser.ConfigParser()
+        if not Path(args_.config).exists():
+            raise ValueError(
+                f"""
+The configuration file does not exists:
+{args_.config}\n
+Make sure to use double quotes (") if the path contains a space.
+"""
+            )
         config.read(args_.config)
         cfg = dict(config.items('DEFAULT'))
     else:

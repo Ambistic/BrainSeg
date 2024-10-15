@@ -52,6 +52,8 @@ elif [ "$script_to_run" = "qc" ]; then
   poetry run python script_qc.py --config "$2"
 elif [ "$script_to_run" = "build_image_transform" ]; then
   poetry run python script_create_image_transform.py --config "$2"
+elif [ "$script_to_run" = "process_mri" ]; then
+  poetry run python script_process_mri.py --config "$2"
 else
   echo "Invalid script name. Please choose 'scriptA' or 'scriptB'."
   exit 1

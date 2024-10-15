@@ -19,7 +19,7 @@ from brainseg.path import build_path_mri, build_path_histo
 from brainseg.polygon import validate_no_overflow, \
     transform_polygons
 from brainseg.utils import extract_classification_name, read_txt
-from brainseg.viz.draw import draw_polygons
+from brainseg.viz.draw import draw_polygons, draw_text
 
 import warnings
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
@@ -46,7 +46,7 @@ def export_correction(
     ordered_polygons, _, params, _, transformed_polygons, transformed_gm = process_pial_gm_manual_correction(
         dict_affine_params, histo_geojson, section_id)
 
-    print(params)
+    print("Parameters : ", params)
     validate_no_overflow(transformed_polygons, raises=False)
 
     histo_mod = image_manual_correction(histo_raw, params, ordered_polygons, margin=(int(200 / 2.5), int(100 / 2.5)),
@@ -58,6 +58,11 @@ def export_correction(
 def export_multi_plot(args, histo_mod, histo_raw, mri_raw, ordered_polygons, section_id, transformed_polygons):
     arr = np.zeros((600, 600))
     arr_ori = draw_polygons(arr, ordered_polygons, rescale=args.scale_inspect, color_iteration=True)
+    # HERE TEST
+    for i, poly in enumerate(ordered_polygons):
+        position = poly.centroid.coords[0]
+        arr_ori = draw_text(arr_ori, str(i), (position[0] * args.scale_inspect, position[1] * args.scale_inspect),
+                            rescale_factor=6)
     arr_trs = draw_polygons(arr, transformed_polygons, rescale=args.scale_inspect, color_iteration=True)
 
     def format_func(value, tick_number):
@@ -86,7 +91,11 @@ def create_transform_from_dirs(args, dir_histo, dir_mri, dir_histo_annotation,
     dict_affine_params = parse_dict_param(",".join(param_data))
     section_with_param = list(set([x[0] for x in dict_affine_params.keys()]))
 
-    if args.single != -1 and args.single in section_with_param:
+    if args.single != -1:
+        if args.single not in section_with_param:
+            warnings.warn("Section has no manual_correction parameter, skipping")
+            return
+
         export_correction(
             args,
             dir_histo, dir_mri, dir_histo_annotation,

@@ -76,7 +76,7 @@ def main(args):
         i_histo = str(int(i)).zfill(3)
         coord_values = get_values_from_wb(args.angle_x, 0, args.angle_z, i_mri)
         for ftype, fname in d_outputs.items():
-            output_path = args.mri_section_dir / f"{ftype}_{i_histo}.png"
+            output_path = args.mri_sections_dir / f"{ftype}_{i_histo}.png"
 
             volume_name = args.mri_dir / fname
             raw_cmd = args.wb_binary
@@ -99,8 +99,8 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=float, default=None)
     parser.add_argument("--end", type=float, default=None)
     parser.add_argument("--step", type=float, default=None)
-    parser.add_argument("-o", "--mri_section_dir", type=Path, default=None)
+    parser.add_argument("-o", "--mri_sections_dir", type=Path, default=None)
     parser.add_argument("-b", "--wb_binary", type=Path, help="The path to the `wb_command` binary", default=None)
     args_ = fill_with_config(parser)
-    args_.mri_section_dir.mkdir(parents=True, exist_ok=True)
+    args_.mri_sections_dir.mkdir(parents=True, exist_ok=True)
     main(args_)

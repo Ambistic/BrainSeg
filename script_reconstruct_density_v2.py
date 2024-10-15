@@ -15,7 +15,7 @@ from brainseg.misc.convert_space import pixel_slice_to_mri_3d
 from brainseg.misc.nifti import load_nifti, get_nifti_end_coord, get_nifti_start_coord, get_nifti_shape
 from brainseg.misc.volume_ops import interpolate, create_3d_histogram
 from brainseg.path import build_path_histo
-from brainseg.utils import extract_classification_name, read_txt
+from brainseg.utils import extract_classification_name, read_txt, calculate_name
 
 
 def build_interpolation(args, slices_indices, list_arrays):
@@ -24,49 +24,31 @@ def build_interpolation(args, slices_indices, list_arrays):
         slices_indices[0], slices_indices[-1], args.interpolation_step)]
 
 
-def coordinates_to_index(point, mri_res=0.5, index_zero=np.array([96, 128, 96])):
-    """
-    Convert MRI coordinates into MRI indexes (from a nifti file)
-    Note that the x-axis is multiplied by -1 by convention.
-
-    :param point:
-    :param mri_res:
-    :param index_zero:
-    :return:
-    """
-    return (point * np.array([-1, 1, 1])) / mri_res + index_zero
-
-
-def extract_points(args, slice_id):
+def open_slice(args, slice_id, cell_type):
     array_point = []
-    array_name = []
-    mri_index = histo_slice_to_mri_slice(args, slice_id)
     file_path = build_path_histo(args.mri_projections_dir, slice_id, args.merged_annotations_mask)
     if not Path(file_path).exists():
         return None
 
     obj = gpd.read_file(file_path)
-    obj["name"] = obj["classification"].apply(extract_classification_name)
+    calculate_name(obj)
+    # obj["name"] = obj["classification"].apply(extract_classification_name)
+    obj = obj[obj["name"] == cell_type]
 
-    for geometry, name in zip(obj["geometry"], obj["name"]):
+    for geometry in obj["geometry"]:
         if isinstance(geometry, MultiPoint):
-            for p in geometry.geoms:
-                point = pixel_slice_to_mri_3d(p.x, p.y, mri_index, (args.angle_x, 0, args.angle_z))
-                array_point.append(coordinates_to_index(point, mri_res=args.mri_voxel_size_mm,
-                                                        index_zero=args.mri_center_coordinates))
-                array_name.append(name)
+            arr = np.array([[p.x, p.y] for p in geometry.geoms])
+            array_point.append(arr)
         elif isinstance(geometry, Point):
-            point = pixel_slice_to_mri_3d(geometry.x, geometry.y, mri_index, (args.angle_x, 0, args.angle_z))
-            array_point.append(coordinates_to_index(point, mri_res=args.mri_voxel_size_mm,
-                                                    index_zero=args.mri_center_coordinates))
-            array_name.append(name)
+            arr = np.array([[geometry.x, geometry.y]])
+            array_point.append(arr)
         else:
+            print(f"A geometry of name {cell_type} is not a point :", type(geometry))
             continue
 
-    if len(array_point) == 0:
-        return None
-
-    return array_point, array_name
+    if len(array_point) != 0:
+        return np.concatenate(array_point, axis=0)
+    return np.array([])
 
 
 def bin_slice_annotation(array):
@@ -120,14 +102,46 @@ def main(args):
     slices_indices = list(range(args.start, args.end, args.step))
     # slices_indices = [129, 130, 131]
     ref_nifti = load_nifti(args.nifti_reference)
-    list_slice = [extract_points(args, slice_id) if slice_id not in excluded else None
-                  for slice_id in slices_indices]
-    slices_indices, list_slice = zip(*filter(lambda x: x[1] is not None, zip(slices_indices, list_slice)))
-    coords, names = list(zip(*list_slice))
-    coords = sum(coords, [])
-    names = sum(names, [])
-    for c, n in zip(coords, names):
-        print(n, c)
+    for cell_type in args.cell_types:
+        print(f"Running for {cell_type}")
+        list_slice = [open_slice(args, slice_id, cell_type) if slice_id not in excluded else None
+                      for slice_id in slices_indices]
+
+        slices_indices, list_slice = zip(*filter(lambda x: x[1] is not None, zip(slices_indices, list_slice)))
+
+        list_arrays = [bin_slice_annotation(s) for s in list_slice]
+        full_arrays = build_interpolation(args, slices_indices, list_arrays)
+
+        new_data = bin_mri_coord(args, slices_indices, full_arrays, ref_nifti)
+
+        # plt.hist(new_data.flatten(), bins=100, log=True)
+        # plt.show()
+
+        header = ref_nifti.header
+        new_image = nib.Nifti1Image(new_data, header.get_best_affine(), header)
+        # Save the new image under a new name
+        out_volume_name = os.path.join(
+            args.mri_processing_dir,
+            f"cell_density_{cell_type}.nii",
+        )
+        nib.save(new_image, out_volume_name)
+
+        out_surf_name = os.path.join(
+            args.mri_processing_dir,
+            f"cell_density_{cell_type}.func.gii",
+        )
+
+        # wb part
+        os.system(f'"{args.wb_binary}" -volume-to-surface-mapping "{out_volume_name}" '
+                  f'"{args.mid_surface}" '
+                  f'"{out_surf_name}.prediltmp.func.gii" '
+                  f'-ribbon-constrained "{args.internal_surface}" "{args.external_surface}" '
+                  f'-voxel-subdiv 3 '
+                  f'-bad-vertices-out "{out_surf_name}.badvert.func.gii"')
+
+        os.system(f'"{args.wb_binary}" -metric-dilate "{out_surf_name}.prediltmp.func.gii" '
+                  f'"{args.mid_surface}" 1 "{out_surf_name}" '
+                  f'-bad-vertex-roi "{out_surf_name}.badvert.func.gii"')
 
 
 if __name__ == "__main__":
@@ -137,28 +151,26 @@ if __name__ == "__main__":
     # parser.add_argument("--mri_voxel_size_mm", type=float, default=None)
     parser.add_argument("--merged_annotations_mask", type=str, default=None)
     parser.add_argument("--interpolation_step", type=float, default=None)
+    parser.add_argument("--mri_processing_dir", type=Path, default=None)
     parser.add_argument("--nifti_reference", type=str, default=None)
     parser.add_argument("--mri_projections_dir", type=Path, default=None)
-    parser.add_argument("--mri_voxel_size_mm", type=float, default=None)
-    parser.add_argument("--mri_center_coordinates", type=str, default=None)
     parser.add_argument("--cell_types", type=str, default=None)
     parser.add_argument("--exclude_file", type=str, default=None)
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--step", type=int, default=None)
-    parser.add_argument("--translation_y", type=int, default=None)
+    parser.add_argument("--translation_y", type=float, default=None)
     parser.add_argument("--scale_y", type=float, default=None)
     parser.add_argument("--angle_x", type=int, default=None)
     parser.add_argument("--angle_z", type=int, default=None)
     parser.add_argument("--internal_surface", type=str, default=None)
     parser.add_argument("--mid_surface", type=str, default=None)
     parser.add_argument("--external_surface", type=str, default=None)
-
+    parser.add_argument("--wb_binary", type=str, default=None)
     args_ = fill_with_config(parser)
     args_.cell_types = list(map(str.strip, args_.cell_types.split(",")))
-    args_.mri_center_coordinates = np.array(list(map(
-        lambda x: float(x.strip()), args_.mri_center_coordinates.split(","))))
-    assert len(args_.mri_center_coordinates) == 3, f"mri_center_coordinates should have 3 " \
-                                                   f"coordinates : {args_.mri_center_coordinates}"
+
+    if not args_.mri_processing_dir.exists():
+        args_.mri_processing_dir.mkdir(parents=True, exist_ok=True)
 
     main(args_)

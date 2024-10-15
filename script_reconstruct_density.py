@@ -15,7 +15,7 @@ from brainseg.misc.convert_space import pixel_slice_to_mri_3d
 from brainseg.misc.nifti import load_nifti, get_nifti_end_coord, get_nifti_start_coord, get_nifti_shape
 from brainseg.misc.volume_ops import interpolate, create_3d_histogram
 from brainseg.path import build_path_histo
-from brainseg.utils import extract_classification_name, read_txt
+from brainseg.utils import extract_classification_name, read_txt, calculate_name
 
 
 def build_interpolation(args, slices_indices, list_arrays):
@@ -31,7 +31,8 @@ def open_slice(args, slice_id, cell_type):
         return None
 
     obj = gpd.read_file(file_path)
-    obj["name"] = obj["classification"].apply(extract_classification_name)
+    calculate_name(obj)
+    # obj["name"] = obj["classification"].apply(extract_classification_name)
     obj = obj[obj["name"] == cell_type]
 
     for geometry in obj["geometry"]:
@@ -42,7 +43,7 @@ def open_slice(args, slice_id, cell_type):
             arr = np.array([[geometry.x, geometry.y]])
             array_point.append(arr)
         else:
-            print(f"A geometry of name {cell_type} is not a MultiPoint")
+            print(f"A geometry of name {cell_type} is not a point :", type(geometry))
             continue
 
     if len(array_point) != 0:
@@ -157,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--step", type=int, default=None)
-    parser.add_argument("--translation_y", type=int, default=None)
+    parser.add_argument("--translation_y", type=float, default=None)
     parser.add_argument("--scale_y", type=float, default=None)
     parser.add_argument("--angle_x", type=int, default=None)
     parser.add_argument("--angle_z", type=int, default=None)

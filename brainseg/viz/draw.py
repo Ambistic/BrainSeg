@@ -1,11 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import ImageDraw, Image
 from matplotlib.path import Path as GeomPath
 from scipy.ndimage import binary_dilation, binary_erosion
 from shapely.geometry import shape, Polygon, MultiPolygon
 import geopandas as gpd
 from rasterio import features
 from skimage.draw import polygon
+from skimage.transform import rescale, resize
 
 from brainseg.polygon import rescale_polygon, get_holes
 
@@ -168,7 +170,41 @@ def draw_polygon(arr, poly, rescale=1., reverse=False, value=1):
     return arr
 
 
+def draw_text(arr, text, position, fill_value=1, rescale_factor=1):
+    """It's reversed !!!"""
+    # Step 1: Create a binary NumPy array
+    shape = (arr.shape[1] // rescale_factor, arr.shape[0] // rescale_factor)
+    binary_array = np.zeros(shape, dtype=np.uint8)  # 100x300 binary array
+
+    # Step 2: Convert the binary NumPy array to an image
+    image = Image.fromarray(binary_array)  # Multiply by 255 to get the correct grayscale representation
+
+    # Step 3: Initialize ImageDraw
+    draw = ImageDraw.Draw(image)
+
+    # Step 4: Draw text on the image
+    shift = 4  # to center the text
+    draw.text((position[0] // rescale_factor - shift, position[1] // rescale_factor - shift),
+              text, fill=fill_value, anchor="mm")
+
+    # Step 5: Convert the image back to a binary NumPy array
+    new_binary_array = np.array(image, dtype=np.uint8)
+
+    return arr + resize(new_binary_array.T, arr.shape[:2], preserve_range=True)
+
+
 def draw_polygons(arr, polygons, rescale=1., reverse=False, color_iteration=False):
+    """
+    Draw polygons with different colors (iteratively) for each)
+
+    :param arr: array to be drawn
+    :type arr: Numpy array
+    :param polygons:
+    :param rescale:
+    :param reverse:
+    :param color_iteration:
+    :return:
+    """
     for i, poly in enumerate(polygons):
         value = i + 1 if color_iteration else 1
         arr = draw_polygon(arr, poly.simplify(tolerance=1 / rescale), rescale, reverse, value)
