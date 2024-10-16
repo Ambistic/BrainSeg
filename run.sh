@@ -39,7 +39,7 @@ elif [ "$script_to_run" = "make_sections" ]; then
   poetry run python script_create_mri_sections.py --config "$2"
   poetry run python script_create_atlas_sections.py --config "$2"
 elif [ "$script_to_run" = "make_transform" ]; then
-  poetry run python script_create_transforms_v3.py --config "$2"
+  poetry run python script_create_transforms_v4.py --config "$2"
 elif [ "$script_to_run" = "select_angle" ]; then
   poetry run python script_angle_selection.py --config "$2"
 elif [ "$script_to_run" = "merge" ]; then
