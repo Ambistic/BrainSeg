@@ -309,3 +309,11 @@ def get_rolling_slice(ls, start, end):
         return ls[start:end]
     else:
         return ls[start:] + ls[:end]
+
+
+def calculate_name(histo_geojson):
+    classes = histo_geojson["classification"].apply(extract_classification_name).fillna("none")
+    if "name" not in histo_geojson.columns:
+        histo_geojson["name"] = classes
+    else:
+        histo_geojson["name"] = histo_geojson["name"].fillna(classes)

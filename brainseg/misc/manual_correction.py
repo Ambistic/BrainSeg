@@ -15,13 +15,20 @@ def as_polygons(poly):
         raise ValueError(f"Not recognized shape {poly}")
 
 
-def process_pial_gm_manual_correction(dict_affine_params, histo_geojson, section_id):
+def process_pial_gm_manual_correction(dict_affine_params, histo_geojson, section_id, outline=None,
+                                      wm=None):
+    # TODO change this, this is a very bad practice
+    if outline is None:
+        outline = ["auto_outline", "pial"]
+
+    if wm is None:
+        wm = ["auto_wm", "WM"]
     # pial = extract_shape(histo_geojson, "auto_outline").explode()
     # gm = extract_shape(histo_geojson, "auto_wm").explode()
     # pial = list(pial["geometry"])
     # gm = list(gm["geometry"])
-    pial = as_polygons(extract_shape(histo_geojson, "auto_outline")["geometry"])
-    gm = as_polygons(extract_shape(histo_geojson, "auto_wm")["geometry"])
+    pial = as_polygons(extract_shape(histo_geojson, outline)["geometry"])
+    gm = as_polygons(extract_shape(histo_geojson, wm)["geometry"])
     order = make_polygon_ordering(pial)
     ordered_pial = [pial[index] for index in order]
     params = build_params_from_dict(dict_affine_params, ordered_pial, section_id)

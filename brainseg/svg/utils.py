@@ -2,6 +2,48 @@ import numpy as np
 from lxml import etree as ET
 
 
+RAW = r"""<?xml version="1.0" standalone="yes"?>
+<!-- Generator by matlab -->
+<svg
+xmlns="http://www.w3.org/2000/svg"
+xmlns:xlink="http://www.w3.org/1999/xlink"
+xmlns:svg="http://www.w3.org/2000/svg"
+Version="1.1"
+{viewbox}
+preserveAspectRatio="xMidYMid meet">
+</svg>
+"""
+
+
+def get_svg_root_plotfast():
+    return ET.fromstring(RAW.format(viewbox='viewBox="-30000 -30000 60000 60000"'))
+
+
+def add_polygon_svg(root, array_points, color):
+    poly = ET.Element("polygon", dict(
+        points=numpy_to_points(array_points),
+        style=f"stroke:{color}; fill:none; stroke-width:1"
+    ))
+    root.append(poly)
+
+
+def add_polyline_svg(root, array_points, color):
+    poly = ET.Element("polyline", dict(
+        points=numpy_to_points(array_points),
+        style=f"stroke:{color}; fill:none; stroke-width:1"
+    ))
+    root.append(poly)
+
+
+def add_point_svg(root, coordx, coordy, name):
+    # maybe the stroke value could be changed
+    root.append(ET.Comment(f" Point {name} "))
+    stroke = {"stroke-width": "1"}
+    point = ET.Element("circle", dict(cx=str(coordx), cy=str(coordy), r="2.500000",
+                                      stroke="rgb(0,0,255)", fill="none", **stroke))
+    root.append(point)
+
+
 def css_to_dict(css):
     return dict([map(str.strip, element.split(":")) for element in css.split(";")])
 
