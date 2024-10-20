@@ -474,7 +474,7 @@ def create_transforms(
             raise RuntimeError(f"An image ({section_id}) has constant value, this can't be registered !")
 
         # check if not too few pixels are not background
-        if (image_mri == image_mri.min()).mean() < 0.002:
+        if (image_mri != image_mri.min()).mean() < 0.01:
             raise RuntimeError(f"An image ({section_id}) has almost constant value, this can't be registered !")
 
     except Exception as e:
