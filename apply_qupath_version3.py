@@ -7,6 +7,7 @@ This scripts still requires to be tested !!!
 import argparse
 import math
 import os.path
+import traceback
 from pathlib import Path
 
 import aicspylibczi
@@ -196,8 +197,9 @@ def main(args):
             continue
         try:
             segment_slide(args, slide_path, slice_id)
-        except:
-            print("Couldn't segment slide", slice_id)
+        except Exception as e:
+            print("Couldn't segment slide", slice_id, "reason:", e)
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
