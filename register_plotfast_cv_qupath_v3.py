@@ -19,11 +19,12 @@ import matplotlib
 from skimage.registration import phase_cross_correlation
 from tqdm import tqdm
 
+matplotlib.use('TkAgg')
+
 from brainseg.geo import svg_to_geojson, simplify_line, simplify_all, transform_geojson, save_geojson
 from brainseg.registration import get_affine_transform_matrix
 from brainseg.viz.draw import draw_polygon_border, draw_in_mask
 
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import lxml.etree as et
 
